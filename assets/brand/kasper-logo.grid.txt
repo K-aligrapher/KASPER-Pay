@@ -1,0 +1,17 @@
+# KASPER pixel bunny — source of truth for every logo render (16 x 15)
+# B = black #0D0D0D   G = gold #F5B800   D = dark gold #B37F00   W = cream #FFF6D6   . = transparent
+...BBB....BBB...
+..BGGGB..BGGGB..
+..BGDGB..BGDGB..
+..BGDGB..BGDGB..
+..BGDGB..BGDGB..
+..BGGGBBBBGGGB..
+.BGGGGGGGGGGGGB.
+BGGGGGGGGGGGGGGB
+BGGWBGGGGGGWBGGB
+BGGBBGGGGGGBBGGB
+BGGGGGGBBGGGGGGB
+BGDGGBGBBGBGGDGB
+.BGGGGBGGBGGGGB.
+..BBGGGGGGGGBB..
+....BBBBBBBB....
