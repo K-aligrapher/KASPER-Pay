@@ -5,14 +5,24 @@
 
 ---
 
-**Status:** Milestone 1 (foundation) done. See [KASPER_PRD.md](KASPER_PRD.md) for the full plan.
+**Status:** Milestones 1–2 done (foundation, workflow runtime + Final Review). See [KASPER_PRD.md](KASPER_PRD.md) for the full plan.
 
 | Works now | Coming next |
 |---|---|
-| Desktop app with tray bunny, `Ctrl+Space` hotkey, gold/black UI | Milestone 2: workflows + **Final Review** approvals |
-| `kasper` command in cmd / PowerShell / Windows Terminal | Milestone 3: Document Studio (convert anything, PDF toolkit) |
-| Chat with your local Ollama model (window + terminal) | Milestone 4: Notion · 5: Slack (bot) · 6: Projects + GitHub |
-| SQLite database, local API locked to your user | Milestone 7: more connectors, MCP, scheduling |
+| Desktop app with tray bunny, `Ctrl+Space` hotkey, gold/black UI | Milestone 3: Document Studio (convert anything, PDF toolkit) |
+| `kasper` command in cmd / PowerShell / Windows Terminal | Milestone 4: Notion · 5: Slack (bot) · 6: Projects + GitHub |
+| Tasks in plain English: KASPER plans steps, runs them, and **stops for Final Review** before saving | Milestone 7: more connectors, MCP, scheduling |
+| Approvals, History (full trace + audit log) and Settings (allowed folders) screens, live updates, notifications | |
+
+## How Final Review works
+
+1. You ask: *"write a packing list for a weekend trip and save it as packing.md"*.
+2. KASPER's local model proposes a plan (write text → prepare file → save file). The server checks it: only registered tools, valid inputs, allowed folders, no invented paths.
+3. Safe steps run straight away. Anything that **saves, sends, updates or deletes** is prepared in a private staging folder and waits.
+4. You get a notification. The Approvals screen (or `kasper review`) shows exactly what will happen: file name, destination and content. You can **Approve**, **Edit** or **Reject**.
+5. Right before acting, KASPER checks that nothing changed since you approved. If something changed, it asks again. Files are never overwritten; a copy gets a "(2)" suffix instead.
+
+Tasks survive restarts. Temporary failures are retried a few times, and every step is recorded in History.
 
 ## Install (for daily use)
 
@@ -26,7 +36,11 @@ This publishes KASPER to `%LOCALAPPDATA%\Programs\KASPER`, adds it to your user 
 
 ```text
 kasper                 # talk to KASPER (pixel bunny banner + prompt)
-kasper ask "..."       # one-shot question
+kasper ask "..."       # one-shot question or task (follows it and asks for approval)
+kasper approvals       # what's waiting for you
+kasper review [id]     # approve / edit / reject, with a full preview
+kasper status [id]     # recent tasks, or one task's step-by-step trace
+kasper cancel <id>     # stop a task
 kasper open            # open the desktop window
 kasper doctor          # check Ollama, database and document engines
 kasper --help
@@ -49,7 +63,7 @@ Environment variables work too (`KASPER__Ollama__Model=...`, see [.env.example](
 ```powershell
 cd ui; npm install; npm run build; cd ..     # UI is served from the desktop app
 dotnet build Kasper.sln
-dotnet test                                    # 37 tests, no Ollama or accounts needed
+dotnet test                                    # 84 tests, no Ollama or accounts needed
 .\src\Kasper.Cli\bin\Debug\net10.0\kasper.exe  # finds the Debug desktop build automatically
 ```
 
@@ -60,7 +74,7 @@ Logo: edit [assets/brand/kasper-logo.grid.txt](assets/brand/kasper-logo.grid.txt
 ```text
 src/Kasper.Domain          entities and rules (workflow state machine, approval policy)
 src/Kasper.Application     interfaces, contracts, options, prompts
-src/Kasper.Infrastructure  Ollama, SQLite (EF Core), session/token security
+src/Kasper.Infrastructure  Ollama, SQLite (EF Core), workflow engine + worker, tools, planner, security
 src/Kasper.Api             local HTTP API (127.0.0.1 only, per-launch token)
 src/Kasper.Desktop         WPF + WebView2 window, tray, hotkey, notifications
 src/Kasper.Cli             the `kasper` command (Spectre.Console)

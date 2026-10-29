@@ -10,6 +10,8 @@ public sealed class Workflow
     public Guid Id { get; private set; }
     public string CreatedBy { get; private set; } = "";
     public string RequestText { get; private set; } = "";
+    /// <summary>Plan summary shown to the user ("Write a note and save it to Documents").</summary>
+    public string Summary { get; private set; } = "";
     public WorkflowStatus Status { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public DateTime UpdatedAtUtc { get; private set; }
@@ -18,12 +20,17 @@ public sealed class Workflow
     public string CorrelationId { get; private set; } = "";
     public string? FailureCode { get; private set; }
     public string? FailureSummary { get; private set; }
+    public bool CancelRequested { get; private set; }
 
-    public static Workflow Create(string createdBy, string requestText, DateTime nowUtc) => new()
+    /// <summary>Optimistic concurrency: two processes can never both move the same workflow.</summary>
+    public int Version { get; private set; }
+
+    public static Workflow Create(string createdBy, string requestText, string summary, DateTime nowUtc) => new()
     {
         Id = Guid.NewGuid(),
         CreatedBy = createdBy,
         RequestText = requestText,
+        Summary = summary,
         Status = WorkflowStatus.Pending,
         CreatedAtUtc = nowUtc,
         UpdatedAtUtc = nowUtc,
@@ -37,6 +44,7 @@ public sealed class Workflow
 
         Status = next;
         UpdatedAtUtc = nowUtc;
+        Version++;
         if (next == WorkflowStatus.Running) StartedAtUtc ??= nowUtc;
         if (next is WorkflowStatus.Succeeded or WorkflowStatus.Failed or WorkflowStatus.Cancelled) CompletedAtUtc = nowUtc;
         if (next == WorkflowStatus.Failed)
@@ -44,11 +52,20 @@ public sealed class Workflow
             FailureCode = failureCode;
             FailureSummary = failureSummary;
         }
+        if (next == WorkflowStatus.Cancelled && failureSummary is not null) FailureSummary = failureSummary;
         if (next == WorkflowStatus.Pending)
         {
             FailureCode = null;
             FailureSummary = null;
             CompletedAtUtc = null;
+            CancelRequested = false;
         }
+    }
+
+    public void RequestCancel(DateTime nowUtc)
+    {
+        CancelRequested = true;
+        UpdatedAtUtc = nowUtc;
+        Version++;
     }
 }

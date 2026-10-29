@@ -29,7 +29,7 @@ public class WorkflowStateMachineTests
     public void Workflow_records_timestamps_and_failure()
     {
         var t0 = new DateTime(2026, 10, 30, 0, 0, 0, DateTimeKind.Utc);
-        var wf = Workflow.Create("me", "convert report", t0);
+        var wf = Workflow.Create("me", "convert report", "Convert report", t0);
 
         wf.TransitionTo(WorkflowStatus.Running, t0.AddSeconds(1));
         wf.TransitionTo(WorkflowStatus.Failed, t0.AddSeconds(2), "engine_missing", "LibreOffice not installed");
@@ -46,7 +46,7 @@ public class WorkflowStateMachineTests
     [Fact]
     public void Workflow_throws_on_illegal_transition()
     {
-        var wf = Workflow.Create("me", "x", DateTime.UtcNow);
+        var wf = Workflow.Create("me", "x", "x", DateTime.UtcNow);
         Assert.Throws<InvalidOperationException>(() => wf.TransitionTo(WorkflowStatus.Succeeded, DateTime.UtcNow));
     }
 }

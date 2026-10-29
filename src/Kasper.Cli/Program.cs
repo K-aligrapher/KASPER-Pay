@@ -18,7 +18,12 @@ app.Configure(config =>
 
     config.AddCommand<AskCommand>("ask")
         .WithDescription("Ask KASPER something or give it a task.")
-        .WithExample("ask", "\"summarise what a PRD is in two lines\"");
+        .WithExample("ask", "\"summarise what a PRD is in two lines\"")
+        .WithExample("ask", "\"write a packing list for a 3-day trip and save it as packing.md\"");
+    config.AddCommand<ApprovalsCommand>("approvals").WithDescription("List actions waiting for your approval.");
+    config.AddCommand<ReviewCommand>("review").WithDescription("Approve, edit or reject waiting actions (Final Review).");
+    config.AddCommand<StatusCommand>("status").WithDescription("Recent tasks, or one task's full trace.");
+    config.AddCommand<CancelCommand>("cancel").WithDescription("Cancel a task.");
     config.AddCommand<OpenCommand>("open").WithDescription("Open the KASPER desktop window.");
     config.AddCommand<Doctor>("doctor").WithDescription("Check Ollama, the database and document engines.");
 

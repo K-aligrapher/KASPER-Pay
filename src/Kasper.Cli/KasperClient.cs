@@ -101,19 +101,41 @@ internal sealed class KasperClient : IDisposable
     public async Task<HealthDto> HealthAsync(CancellationToken ct) =>
         (await _http.GetFromJsonAsync<HealthDto>("/health", Json, ct))!;
 
-    public async Task<ChatResponseDto> ChatAsync(IReadOnlyList<ChatMessageDto> messages, CancellationToken ct)
-    {
-        using var res = await _http.PostAsJsonAsync("/api/ai/chat", new ChatRequestDto(messages), Json, ct);
-        if (res.IsSuccessStatusCode) return (await res.Content.ReadFromJsonAsync<ChatResponseDto>(Json, ct))!;
+    public Task<AssistantResponseDto> AssistantAsync(IReadOnlyList<ChatMessageDto> messages, CancellationToken ct) =>
+        SendAsync<AssistantResponseDto>(HttpMethod.Post, "/api/assistant", new AssistantRequestDto(messages), ct);
 
-        var error = await res.Content.ReadFromJsonAsync<ErrorDto>(Json, ct).ConfigureAwait(false);
-        throw new KasperCliException(error?.Message ?? $"Request failed ({(int)res.StatusCode}).");
-    }
+    public Task<IReadOnlyList<WorkflowSummaryDto>> WorkflowsAsync(int take, CancellationToken ct) =>
+        SendAsync<IReadOnlyList<WorkflowSummaryDto>>(HttpMethod.Get, $"/api/workflows?take={take}", null, ct);
 
-    public async Task ShowWindowAsync(CancellationToken ct)
+    public Task<WorkflowDetailDto> WorkflowAsync(Guid id, CancellationToken ct) =>
+        SendAsync<WorkflowDetailDto>(HttpMethod.Get, $"/api/workflows/{id}", null, ct);
+
+    public Task<IReadOnlyList<ApprovalDto>> ApprovalsAsync(CancellationToken ct) =>
+        SendAsync<IReadOnlyList<ApprovalDto>>(HttpMethod.Get, "/api/approvals", null, ct);
+
+    public Task DecideAsync(Guid approvalId, DecisionDto decision, CancellationToken ct) =>
+        SendAsync<object>(HttpMethod.Post, $"/api/approvals/{approvalId}/decision", decision, ct);
+
+    public Task CancelAsync(Guid workflowId, CancellationToken ct) =>
+        SendAsync<object>(HttpMethod.Post, $"/api/workflows/{workflowId}/cancel", null, ct);
+
+    public Task ShowWindowAsync(CancellationToken ct, string? route = null) =>
+        SendAsync<object>(HttpMethod.Post, "/api/app/show" + (route is null ? "" : $"?route={route}"), null, ct);
+
+    private async Task<T> SendAsync<T>(HttpMethod method, string path, object? body, CancellationToken ct)
     {
-        using var res = await _http.PostAsync("/api/app/show", null, ct);
-        res.EnsureSuccessStatusCode();
+        using var req = new HttpRequestMessage(method, path);
+        if (body is not null) req.Content = JsonContent.Create(body, body.GetType(), options: Json);
+        using var res = await _http.SendAsync(req, ct);
+        if (res.IsSuccessStatusCode)
+            return res.Content.Headers.ContentLength is 0 || res.StatusCode is System.Net.HttpStatusCode.NoContent or System.Net.HttpStatusCode.Accepted
+                ? default!
+                : (await res.Content.ReadFromJsonAsync<T>(Json, ct))!;
+
+        ErrorDto? error = null;
+        try { error = await res.Content.ReadFromJsonAsync<ErrorDto>(Json, ct); } catch (JsonException) { }
+        var details = error?.Details is { Count: > 0 } d ? " " + string.Join(" ", d) : "";
+        throw new KasperCliException((error?.Message ?? $"Request failed ({(int)res.StatusCode}).") + details);
     }
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);

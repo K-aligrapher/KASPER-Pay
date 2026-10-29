@@ -118,7 +118,7 @@ public sealed class ApiTests : IAsyncLifetime
         public IReadOnlyList<ChatMessageDto>? LastMessages;
         public ChatModelException? FailWith;
 
-        public Task<ChatResponseDto> ChatAsync(IReadOnlyList<ChatMessageDto> messages, string? model, CancellationToken ct)
+        public Task<ChatResponseDto> ChatAsync(IReadOnlyList<ChatMessageDto> messages, string? model, CancellationToken ct, ChatOptions? options = null)
         {
             Calls++;
             LastMessages = messages;

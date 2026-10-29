@@ -7,12 +7,14 @@ namespace Kasper.Desktop;
 internal sealed class TrayIcon : IDisposable
 {
     private readonly Forms.NotifyIcon _icon;
+    private string? _lastRoute;
 
-    public TrayIcon(Action open, Action quit)
+    public TrayIcon(Action<string?> open, Action quit)
     {
         var iconPath = Path.Combine(AppContext.BaseDirectory, "kasper.ico");
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("Open KASPER", null, (_, _) => open());
+        menu.Items.Add("Open KASPER", null, (_, _) => open(null));
+        menu.Items.Add("Approvals", null, (_, _) => open("approvals"));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Quit", null, (_, _) => quit());
 
@@ -23,12 +25,16 @@ internal sealed class TrayIcon : IDisposable
             ContextMenuStrip = menu,
             Visible = true,
         };
-        _icon.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) open(); };
-        _icon.BalloonTipClicked += (_, _) => open();
+        _icon.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) open(null); };
+        _icon.BalloonTipClicked += (_, _) => open(_lastRoute);
     }
 
-    public void Notify(string title, string message) =>
-        _icon.ShowBalloonTip(5000, title, message, Forms.ToolTipIcon.None);
+    /// <param name="route">View to open when the notification is clicked.</param>
+    public void Notify(string title, string message, string? route = null)
+    {
+        _lastRoute = route;
+        _icon.ShowBalloonTip(5000, title, message.Length > 200 ? message[..200] + "…" : message, Forms.ToolTipIcon.None);
+    }
 
     public void Dispose()
     {

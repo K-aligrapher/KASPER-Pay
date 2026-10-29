@@ -2,9 +2,13 @@ using Kasper.Application.Contracts;
 
 namespace Kasper.Application.Abstractions;
 
+/// <summary>Per-call options. JsonMode asks the model to return a single JSON object.</summary>
+public sealed record ChatOptions(bool JsonMode = false, double? Temperature = null);
+
 public interface IChatModel
 {
-    Task<ChatResponseDto> ChatAsync(IReadOnlyList<ChatMessageDto> messages, string? model, CancellationToken ct);
+    Task<ChatResponseDto> ChatAsync(IReadOnlyList<ChatMessageDto> messages, string? model, CancellationToken ct,
+        ChatOptions? options = null);
 }
 
 /// <summary>Model or provider failure, classified so callers can decide whether to retry.</summary>

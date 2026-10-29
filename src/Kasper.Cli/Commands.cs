@@ -71,14 +71,31 @@ internal sealed class InteractiveCommand : AsyncCommand<InteractiveCommand.Setti
                     ready = await client.ReadyAsync(cancellation);
                     Doctor.PrintComponents(ready);
                     continue;
+                case "/approvals" or "/review":
+                    var pending = await client.ApprovalsAsync(cancellation);
+                    if (pending.Count == 0) AnsiConsole.MarkupLine("[green]✓[/] Nothing is waiting for your approval.");
+                    else foreach (var g in pending.GroupBy(a => a.WorkflowId))
+                    {
+                        if (!await Flow.ReviewAsync(client, g.ToList(), cancellation)) break;
+                        await Flow.FollowAsync(client, g.Key, cancellation);
+                    }
+                    continue;
             }
 
             history.Add(new ChatMessageDto("user", line));
             try
             {
-                var reply = await Ui.Thinking(() => client.ChatAsync(history.TakeLast(20).ToList(), cancellation));
-                history.Add(new ChatMessageDto("assistant", reply.Content));
-                Ui.Reply(reply.Content);
+                var result = await Ui.Thinking(() => client.AssistantAsync(history.TakeLast(12).ToList(), cancellation));
+                if (result.Reply is { Length: > 0 } reply)
+                {
+                    history.Add(new ChatMessageDto("assistant", reply));
+                    Ui.Reply(reply);
+                }
+                if (result.Workflow is { } wf)
+                {
+                    AnsiConsole.MarkupLine($"[grey]task [{Banner.Gold}]{Flow.Short(wf.Id)}[/]: {Markup.Escape(wf.Summary)}[/]");
+                    await Flow.FollowAsync(client, wf.Id, cancellation);
+                }
             }
             catch (KasperCliException ex)
             {
@@ -92,13 +109,14 @@ internal sealed class InteractiveCommand : AsyncCommand<InteractiveCommand.Setti
     private static void PrintHelp()
     {
         var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey).AddColumn("Type").AddColumn("Does");
-        table.AddRow("[" + Banner.Gold + "]anything[/]", "Ask KASPER (conversation remembers the last 20 messages)");
+        table.AddRow("[" + Banner.Gold + "]anything[/]", "Ask a question or give a task, e.g. \"write a packing list and save it as packing.md\"");
+        table.AddRow("/approvals", "Review everything waiting for your approval");
         table.AddRow("/open", "Open the desktop window");
         table.AddRow("/status", "Show connection status");
         table.AddRow("/clear", "Clear the screen and forget the conversation");
         table.AddRow("exit", "Leave (KASPER keeps running in the tray)");
         AnsiConsole.Write(table);
-        AnsiConsole.MarkupLine("[grey]Coming next: convert, pdf, approvals, review, projects (see `kasper --help`).[/]");
+        AnsiConsole.MarkupLine("[grey]Also: kasper approvals · kasper review · kasper status · kasper cancel (see `kasper --help`).[/]");
     }
 }
 
@@ -112,20 +130,35 @@ internal sealed class AskCommand : AsyncCommand<AskCommand.Settings>
         public string[] Request { get; init; } = [];
 
         [CommandOption("--json")]
-        [Description("Print the raw JSON response.")]
+        [Description("Print the raw JSON response and don't wait for the task.")]
         public bool Json { get; init; }
+
+        [CommandOption("--no-wait")]
+        [Description("Start the task and return; review it later with `kasper review`.")]
+        public bool NoWait { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
         var text = string.Join(' ', settings.Request).Trim();
         using var client = await KasperClient.ConnectAsync(startIfNeeded: true, cancellation);
-        var reply = settings.Json
-            ? await client.ChatAsync([new("user", text)], cancellation)
-            : await Ui.Thinking(() => client.ChatAsync([new("user", text)], cancellation));
+        var result = settings.Json
+            ? await client.AssistantAsync([new("user", text)], cancellation)
+            : await Ui.Thinking(() => client.AssistantAsync([new("user", text)], cancellation));
 
-        if (settings.Json) AnsiConsole.WriteLine(System.Text.Json.JsonSerializer.Serialize(reply));
-        else Ui.Reply(reply.Content);
+        if (settings.Json)
+        {
+            AnsiConsole.WriteLine(System.Text.Json.JsonSerializer.Serialize(result,
+                new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)));
+            return 0;
+        }
+
+        if (result.Reply is { Length: > 0 } reply) Ui.Reply(reply);
+        if (result.Workflow is { } wf)
+        {
+            AnsiConsole.MarkupLine($"[grey]task [{Banner.Gold}]{Flow.Short(wf.Id)}[/]: {Markup.Escape(wf.Summary)}[/]");
+            if (!settings.NoWait) await Flow.FollowAsync(client, wf.Id, cancellation);
+        }
         return 0;
     }
 }

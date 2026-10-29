@@ -74,6 +74,7 @@ public sealed class KasperApiHost : IAsyncDisposable
         }
 
         app.MapCoreEndpoints(version);
+        app.MapWorkflowEndpoints();
         if (Directory.Exists(webRoot))
             app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = new PhysicalFileProvider(Path.GetFullPath(webRoot)) });
 

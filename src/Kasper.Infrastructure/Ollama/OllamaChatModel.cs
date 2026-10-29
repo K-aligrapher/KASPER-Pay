@@ -12,7 +12,8 @@ namespace Kasper.Infrastructure.Ollama;
 /// <summary>Typed adapter for Ollama's /api/chat (non-streaming).</summary>
 public sealed class OllamaChatModel(HttpClient http, IOptionsMonitor<OllamaOptions> options) : IChatModel
 {
-    public async Task<ChatResponseDto> ChatAsync(IReadOnlyList<ChatMessageDto> messages, string? model, CancellationToken ct)
+    public async Task<ChatResponseDto> ChatAsync(IReadOnlyList<ChatMessageDto> messages, string? model, CancellationToken ct,
+        ChatOptions? chatOptions = null)
     {
         var opts = options.CurrentValue;
         var request = new OllamaChatRequest(
@@ -20,7 +21,8 @@ public sealed class OllamaChatModel(HttpClient http, IOptionsMonitor<OllamaOptio
             messages.Select(m => new OllamaMessage(m.Role, m.Content)).ToList(),
             Stream: false,
             opts.KeepAlive,
-            new OllamaRequestOptions(opts.ContextLength));
+            chatOptions?.JsonMode == true ? "json" : null,
+            new OllamaRequestOptions(opts.ContextLength, chatOptions?.Temperature));
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(opts.TimeoutSeconds));
@@ -77,9 +79,12 @@ public sealed class OllamaChatModel(HttpClient http, IOptionsMonitor<OllamaOptio
         [property: JsonPropertyName("messages")] List<OllamaMessage> Messages,
         [property: JsonPropertyName("stream")] bool Stream,
         [property: JsonPropertyName("keep_alive")] string KeepAlive,
+        [property: JsonPropertyName("format"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Format,
         [property: JsonPropertyName("options")] OllamaRequestOptions Options);
 
-    private sealed record OllamaRequestOptions([property: JsonPropertyName("num_ctx")] int NumCtx);
+    private sealed record OllamaRequestOptions(
+        [property: JsonPropertyName("num_ctx")] int NumCtx,
+        [property: JsonPropertyName("temperature"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] double? Temperature);
 
     private sealed record OllamaMessage(
         [property: JsonPropertyName("role")] string Role,

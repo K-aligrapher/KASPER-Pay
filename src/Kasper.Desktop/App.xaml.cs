@@ -62,14 +62,17 @@ public partial class App : System.Windows.Application
         }
     }
 
-    internal void ShowMainWindow()
+    internal void ShowMainWindow() => ShowMainWindow(null);
+
+    internal void ShowMainWindow(string? route)
     {
         if (_host is null) return;
         _window ??= new MainWindow(_host.BaseUrl, _host.Token, Path.Combine(AppContext.BaseDirectory, "wwwroot"));
         _window.ShowAndFocus();
+        if (route is not null) _window.Navigate(route);
     }
 
-    internal void Notify(string title, string message) => _tray?.Notify(title, message);
+    internal void Notify(string title, string message, string? route = null) => _tray?.Notify(title, message, route);
 
     private void ToggleFromHotkey()
     {
@@ -118,8 +121,9 @@ public partial class App : System.Windows.Application
     /// <summary>Lets the API (and the CLI through it) reach the UI thread.</summary>
     private sealed class DesktopShell(App app) : IDesktopShell
     {
-        public void ShowMainWindow() => app.Dispatcher.BeginInvoke(app.ShowMainWindow);
+        public void ShowMainWindow(string? route = null) => app.Dispatcher.BeginInvoke(() => app.ShowMainWindow(route));
 
-        public void Notify(string title, string message) => app.Dispatcher.BeginInvoke(() => app.Notify(title, message));
+        public void Notify(string title, string message, string? route = null) =>
+            app.Dispatcher.BeginInvoke(() => app.Notify(title, message, route));
     }
 }

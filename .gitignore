@@ -16,3 +16,6 @@ ui/dist/
 *.db-shm
 *.db-wal
 appsettings.Local.json
+
+# TypeScript build cache
+*.tsbuildinfo

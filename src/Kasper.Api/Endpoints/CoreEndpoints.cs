@@ -55,9 +55,10 @@ internal static class CoreEndpoints
             }
         });
 
-        app.MapPost("/api/app/show", (IDesktopShell shell) =>
+        app.MapPost("/api/app/show", (string? route, IDesktopShell shell) =>
         {
-            shell.ShowMainWindow();
+            var safeRoute = route is "home" or "approvals" or "history" or "settings" ? route : null;
+            shell.ShowMainWindow(safeRoute);
             return Results.NoContent();
         });
     }

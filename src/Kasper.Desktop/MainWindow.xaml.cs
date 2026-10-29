@@ -55,10 +55,19 @@ public partial class MainWindow : Window
 
     public async void FocusCommandBar()
     {
-        if (_init is not null) await _init;
+        await _loaded.Task;
         Web.Focus();
-        await Web.ExecuteScriptAsync("window.kasper && window.kasper.focusCommand()");
+        await Web.ExecuteScriptAsync("location.hash = '#home'; window.kasper && window.kasper.focusCommand()");
     }
+
+    /// <summary>Opens a view in the UI, e.g. "approvals" from a notification.</summary>
+    public async void Navigate(string route)
+    {
+        await _loaded.Task;
+        await Web.ExecuteScriptAsync($"location.hash = {JsonSerializer.Serialize("#" + route)}");
+    }
+
+    private readonly TaskCompletionSource _loaded = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private async Task InitializeWebViewAsync()
     {
@@ -76,9 +85,10 @@ public partial class MainWindow : Window
             $"if (location.origin === {JsonSerializer.Serialize(_baseUrl)}) window.__KASPER__ = Object.freeze({{ token: {tokenJson} }});");
 
         // Stay on the local app; open any other link in the default browser.
+        core.NavigationCompleted += (_, _) => _loaded.TrySetResult();
         core.NavigationStarting += (_, e) =>
         {
-            if (e.Uri.StartsWith(_baseUrl, StringComparison.OrdinalIgnoreCase)) return;
+            if (e.Uri.StartsWith(_baseUrl, StringComparison.OrdinalIgnoreCase) || e.Uri.StartsWith("data:", StringComparison.Ordinal)) return;
             e.Cancel = true;
             OpenExternal(e.Uri);
         };

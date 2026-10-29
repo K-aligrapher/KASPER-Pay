@@ -1,31 +1,60 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, type ChatMessage, type Ready } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import { api, subscribeEvents, type Ready, type WorkflowEvent } from "./api";
 import { Bunny } from "./Bunny";
+import { Approvals } from "./views/Approvals";
+import { History } from "./views/History";
+import { Home } from "./views/Home";
+import { Settings } from "./views/Settings";
 
-type View = "home" | "documents" | "projects" | "approvals" | "workflows" | "integrations" | "settings";
+type View = "home" | "documents" | "projects" | "approvals" | "history" | "integrations" | "settings";
 
 const NAV: { id: View; label: string; milestone?: string; blurb?: string }[] = [
   { id: "home", label: "Home" },
+  { id: "approvals", label: "Approvals" },
+  { id: "history", label: "History" },
   { id: "documents", label: "Documents", milestone: "Milestone 3", blurb: "Convert any document and use the PDF toolkit: merge, split, compress, OCR and more." },
   { id: "projects", label: "Projects", milestone: "Milestone 6", blurb: "Link folders, Notion, Slack and GitHub per project, with briefings and tasks." },
-  { id: "approvals", label: "Approvals", milestone: "Milestone 2", blurb: "Final Review: every save, send, update or delete waits here for you." },
-  { id: "workflows", label: "History", milestone: "Milestone 2", blurb: "Every workflow with its plan, steps, results and approvals." },
   { id: "integrations", label: "Integrations", milestone: "Milestone 4", blurb: "Notion first, then Slack (as a KASPER bot), then GitHub." },
-  { id: "settings", label: "Settings", milestone: "Milestone 2", blurb: "Model, folders KASPER may use, and approval preferences." },
+  { id: "settings", label: "Settings" },
 ];
 
+function parseHash(): { view: View; param: string | null } {
+  const [view, param] = location.hash.replace(/^#/, "").split("/");
+  return NAV.some((n) => n.id === view) ? { view: view as View, param: param ?? null } : { view: "home", param: null };
+}
+
 export function App() {
-  const [view, setView] = useState<View>("home");
+  const [route, setRoute] = useState(parseHash);
   const [ready, setReady] = useState<Ready | null>(null);
+  const [pending, setPending] = useState(0);
+  const [lastEvent, setLastEvent] = useState<WorkflowEvent | null>(null);
+
+  const go = useCallback((r: string) => { location.hash = r; }, []);
+
+  useEffect(() => {
+    const onHash = () => setRoute(parseHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const refreshPending = useCallback(() => api.approvals().then((a) => setPending(a.length)).catch(() => {}), []);
 
   useEffect(() => {
     const load = () => api.ready().then(setReady).catch(() => setReady(null));
     load();
+    refreshPending();
     const id = setInterval(load, 15000);
-    return () => clearInterval(id);
-  }, []);
+    const unsubscribe = subscribeEvents((e) => {
+      setLastEvent(e);
+      refreshPending();
+    });
+    return () => {
+      clearInterval(id);
+      unsubscribe();
+    };
+  }, [refreshPending]);
 
-  const current = NAV.find((n) => n.id === view)!;
+  const current = NAV.find((n) => n.id === route.view)!;
 
   return (
     <div className="shell">
@@ -36,8 +65,9 @@ export function App() {
         </div>
         <nav>
           {NAV.map((n) => (
-            <button key={n.id} className={n.id === view ? "nav-item active" : "nav-item"} onClick={() => setView(n.id)}>
+            <button key={n.id} className={n.id === route.view ? "nav-item active" : "nav-item"} onClick={() => go(n.id)}>
               {n.label}
+              {n.id === "approvals" && pending > 0 && <span className="badge-count">{pending}</span>}
               {n.milestone && <span className="soon">soon</span>}
             </button>
           ))}
@@ -45,15 +75,22 @@ export function App() {
         <StatusPanel ready={ready} />
       </aside>
       <main className="main">
-        {view === "home" ? (
-          <Home />
-        ) : (
-          <section className="placeholder">
-            <Bunny size={96} />
-            <h1>{current.label}</h1>
-            <p>{current.blurb}</p>
-            <span className="badge">Coming in {current.milestone}</span>
-          </section>
+        {/* Home stays mounted so the conversation survives switching views. */}
+        <div className="view" hidden={route.view !== "home"}>
+          <Home lastEvent={lastEvent} go={go} />
+        </div>
+        {route.view === "approvals" && <div className="view"><Approvals lastEvent={lastEvent} go={go} /></div>}
+        {route.view === "history" && <div className="view"><History selected={route.param} lastEvent={lastEvent} go={go} /></div>}
+        {route.view === "settings" && <div className="view"><Settings ready={ready} /></div>}
+        {current.milestone && (
+          <div className="view">
+            <section className="placeholder">
+              <Bunny size={96} />
+              <h1>{current.label}</h1>
+              <p>{current.blurb}</p>
+              <span className="badge">Coming in {current.milestone}</span>
+            </section>
+          </div>
         )}
       </main>
     </div>
@@ -70,93 +107,6 @@ function StatusPanel({ ready }: { ready: Ready | null }) {
           {c.name}
         </div>
       ))}
-    </div>
-  );
-}
-
-function Home() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-  const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    window.kasper = { focusCommand: () => inputRef.current?.focus() };
-    inputRef.current?.focus();
-  }, []);
-
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [messages, busy]);
-
-  const send = useCallback(async () => {
-    const text = input.trim();
-    if (!text || busy) return;
-    const next: ChatMessage[] = [...messages, { role: "user", content: text }];
-    setMessages(next);
-    setInput("");
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await api.chat(next.slice(-20));
-      setMessages([...next, { role: "assistant", content: res.content }]);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-      inputRef.current?.focus();
-    }
-  }, [input, busy, messages]);
-
-  return (
-    <div className="home">
-      <div className="conversation">
-        {messages.length === 0 && (
-          <div className="welcome">
-            <Bunny size={128} />
-            <h1>Hi, I'm KASPER.</h1>
-            <p>Your desktop coworker. Ask me anything. Soon I'll convert documents, run your projects and update Notion and Slack, and I'll always wait for your approval before anything is saved or sent.</p>
-            <p className="hint">Press <kbd>Ctrl</kbd> + <kbd>Space</kbd> anywhere to open me. Type <code>kasper</code> in a terminal to talk to me there.</p>
-          </div>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} className={`msg msg--${m.role}`}>
-            {m.role === "assistant" && <Bunny size={24} />}
-            <div className="bubble">{m.content}</div>
-          </div>
-        ))}
-        {busy && (
-          <div className="msg msg--assistant">
-            <Bunny size={24} thinking />
-            <div className="bubble thinking">thinking<span>.</span><span>.</span><span>.</span></div>
-          </div>
-        )}
-        {error && <div className="error">{error}</div>}
-        <div ref={endRef} />
-      </div>
-      <form
-        className="command"
-        onSubmit={(e) => {
-          e.preventDefault();
-          send();
-        }}
-      >
-        <span className="prompt">kasper ›</span>
-        <textarea
-          ref={inputRef}
-          rows={1}
-          value={input}
-          placeholder="Ask or tell KASPER what to do…"
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-        />
-        <button className="btn-primary" disabled={busy || !input.trim()}>Send</button>
-      </form>
     </div>
   );
 }
