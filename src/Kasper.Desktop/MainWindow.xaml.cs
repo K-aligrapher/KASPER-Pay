@@ -1,0 +1,118 @@
+﻿using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Text.Json;
+using System.Windows;
+using System.Windows.Media.Imaging;
+using Kasper.Application;
+using Microsoft.Web.WebView2.Core;
+
+namespace Kasper.Desktop;
+
+public partial class MainWindow : Window
+{
+    private readonly string _baseUrl;
+    private readonly string _token;
+    private readonly string _webRoot;
+    private Task? _init;
+
+    public MainWindow(string baseUrl, string token, string webRoot)
+    {
+        _baseUrl = baseUrl;
+        _token = token;
+        _webRoot = webRoot;
+        InitializeComponent();
+
+        var icon = Path.Combine(AppContext.BaseDirectory, "kasper.ico");
+        if (File.Exists(icon)) Icon = BitmapFrame.Create(new Uri(icon));
+
+        _init = InitializeWebViewAsync();
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        // Dark title bar in KASPER black (Windows 11; silently ignored on older builds).
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        int dark = 1, caption = 0x000D0D0D, text = 0x0000B8F5; // COLORREF is 0x00BBGGRR
+        DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));    // DWMWA_USE_IMMERSIVE_DARK_MODE
+        DwmSetWindowAttribute(hwnd, 35, ref caption, sizeof(int)); // DWMWA_CAPTION_COLOR
+        DwmSetWindowAttribute(hwnd, 36, ref text, sizeof(int));    // DWMWA_TEXT_COLOR (gold)
+    }
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    public void ShowAndFocus()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        Topmost = true;  // reliably bring to front from a hotkey/tray
+        Topmost = false;
+        Focus();
+    }
+
+    public async void FocusCommandBar()
+    {
+        if (_init is not null) await _init;
+        Web.Focus();
+        await Web.ExecuteScriptAsync("window.kasper && window.kasper.focusCommand()");
+    }
+
+    private async Task InitializeWebViewAsync()
+    {
+        var env = await CoreWebView2Environment.CreateAsync(userDataFolder: KasperPaths.WebViewData);
+        await Web.EnsureCoreWebView2Async(env);
+        var core = Web.CoreWebView2;
+
+        core.Settings.AreDevToolsEnabled = Debugger.IsAttached;
+        core.Settings.IsStatusBarEnabled = false;
+        core.Settings.AreDefaultContextMenusEnabled = Debugger.IsAttached;
+
+        // The token is only given to our own origin.
+        var tokenJson = JsonSerializer.Serialize(_token);
+        await core.AddScriptToExecuteOnDocumentCreatedAsync(
+            $"if (location.origin === {JsonSerializer.Serialize(_baseUrl)}) window.__KASPER__ = Object.freeze({{ token: {tokenJson} }});");
+
+        // Stay on the local app; open any other link in the default browser.
+        core.NavigationStarting += (_, e) =>
+        {
+            if (e.Uri.StartsWith(_baseUrl, StringComparison.OrdinalIgnoreCase)) return;
+            e.Cancel = true;
+            OpenExternal(e.Uri);
+        };
+        core.NewWindowRequested += (_, e) =>
+        {
+            e.Handled = true;
+            OpenExternal(e.Uri);
+        };
+
+        if (File.Exists(Path.Combine(_webRoot, "index.html"))) core.Navigate(_baseUrl + "/");
+        else core.NavigateToString(MissingUiPage);
+    }
+
+    private static void OpenExternal(string uri)
+    {
+        if (Uri.TryCreate(uri, UriKind.Absolute, out var u) && (u.Scheme == Uri.UriSchemeHttps || u.Scheme == Uri.UriSchemeHttp))
+            Process.Start(new ProcessStartInfo(u.ToString()) { UseShellExecute = true });
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        // Closing the window keeps KASPER running in the tray.
+        if (!((App)System.Windows.Application.Current).IsQuitting)
+        {
+            e.Cancel = true;
+            Hide();
+        }
+        base.OnClosing(e);
+    }
+
+    private const string MissingUiPage = """
+        <html><body style="background:#0D0D0D;color:#F2F2F2;font-family:Segoe UI;padding:40px">
+        <h2 style="color:#F5B800">KASPER UI not built</h2>
+        <p>Run <code>npm install</code> and <code>npm run build</code> in the <code>ui</code> folder, then rebuild.</p>
+        </body></html>
+        """;
+}

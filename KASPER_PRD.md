@@ -702,11 +702,11 @@ npm create vite@latest ui -- --template react-ts
 - **Laptop resources:** limit concurrent LLM and LibreOffice jobs; watch VRAM, RAM and temperatures.
 - **Ghostscript AGPL:** fine for personal local use as an external tool; revisit before distributing KASPER.
 
-**Open questions for the owner:**
-1. Which service should come first after Document Studio: Notion or Slack?
-2. Slack messages: post as a KASPER bot (recommended) or as you?
-3. Should Final Review also be required for staging-only results (for example simply saving a converted file next to the original), or is "approve once at the end of the workflow" enough? (Current spec: approval before saving outside staging.)
-4. Any other services needed in v1 (Google Drive, Gmail, Calendar, Microsoft 365, Jira/Linear)?
+**Decisions from the owner (2026-10-30):**
+1. **Notion comes first** after Document Studio, then Slack.
+2. **Slack posts as a KASPER bot**, not as the user.
+3. **Final Review is required before sending, updating, deleting and saving.** Saving any output outside staging needs approval (FR-042, as specified).
+4. **Other services (Google, Microsoft 365, etc.) are deferred** and will be decided later. The connector framework stays in Milestone 7.
 
 ## 23. Definition of Done
 

@@ -1,0 +1,40 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- WinForms only for the tray icon (NotifyIcon). -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>Kasper.Desktop</AssemblyName>
+    <ApplicationIcon>..\..\assets\brand\kasper.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Avoid WPF/WinForms name clashes (Application, MessageBox, ...). -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Kasper.Api\Kasper.Api.csproj" />
+    <ProjectReference Include="..\Kasper.Application\Kasper.Application.csproj" />
+    <ProjectReference Include="..\Kasper.Infrastructure\Kasper.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\assets\brand\kasper.ico" Link="kasper.ico" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Built React UI (run `npm run build` in /ui, or use build.ps1). -->
+    <Content Include="..\..\ui\dist\**\*" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="WarnMissingUi" BeforeTargets="Build" Condition="!Exists('..\..\ui\dist\index.html')">
+    <Warning Text="ui/dist is missing: the window will show a placeholder. Run 'npm install; npm run build' in the ui folder." />
+  </Target>
+
+</Project>

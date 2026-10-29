@@ -1,0 +1,18 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+publish/
+
+# Node / UI
+node_modules/
+ui/dist/
+
+# Local secrets and data
+.env
+*.db
+*.db-shm
+*.db-wal
+appsettings.Local.json

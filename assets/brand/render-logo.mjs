@@ -50,6 +50,54 @@ for (let y = 0; y < rows.length; y += 2) {
 fs.writeFileSync(path.join(here, "kasper-logo.ansi"), lines.join("\n") + "\n");
 console.log(lines.join("\n"));
 
+// Windows icon: 32-bit BMP entries, square canvas (grid padded to 16x16), nearest-neighbour scaling.
+const side = Math.max(width, rows.length);
+const padTop = Math.floor((side - rows.length) / 2);
+const pixelAt = (x, y) => {
+  const gy = y - padTop;
+  if (gy < 0 || gy >= rows.length || x >= width) return null;
+  return colors[rows[gy][x]] ?? null;
+};
+const sizes = [16, 24, 32, 48, 64, 128, 256].filter((s) => s % side === 0 || s === 24);
+const images = sizes.map((size) => {
+  const andRow = Math.ceil(size / 32) * 4;
+  const buf = Buffer.alloc(40 + size * size * 4 + andRow * size);
+  buf.writeUInt32LE(40, 0);
+  buf.writeInt32LE(size, 4);
+  buf.writeInt32LE(size * 2, 8);
+  buf.writeUInt16LE(1, 12);
+  buf.writeUInt16LE(32, 14);
+  let o = 40;
+  for (let y = size - 1; y >= 0; y--) {
+    for (let x = 0; x < size; x++) {
+      const hex = pixelAt(Math.floor((x * side) / size), Math.floor((y * side) / size));
+      if (hex) {
+        buf[o] = parseInt(hex.slice(5, 7), 16);
+        buf[o + 1] = parseInt(hex.slice(3, 5), 16);
+        buf[o + 2] = parseInt(hex.slice(1, 3), 16);
+        buf[o + 3] = 255;
+      }
+      o += 4;
+    }
+  }
+  return { size, buf };
+});
+const header = Buffer.alloc(6 + 16 * images.length);
+header.writeUInt16LE(1, 2);
+header.writeUInt16LE(images.length, 4);
+let offset = header.length;
+images.forEach(({ size, buf }, i) => {
+  const e = 6 + 16 * i;
+  header[e] = size === 256 ? 0 : size;
+  header[e + 1] = size === 256 ? 0 : size;
+  header.writeUInt16LE(1, e + 4);
+  header.writeUInt16LE(32, e + 6);
+  header.writeUInt32LE(buf.length, e + 8);
+  header.writeUInt32LE(offset, e + 12);
+  offset += buf.length;
+});
+fs.writeFileSync(path.join(here, "kasper.ico"), Buffer.concat([header, ...images.map((i) => i.buf)]));
+
 const htmlIdx = process.argv.indexOf("--html");
 if (htmlIdx > -1) {
   const dir = process.argv[htmlIdx + 1];
