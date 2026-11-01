@@ -34,9 +34,11 @@ try {
 # 3. Publish desktop app and CLI side by side.
 Write-Host "Publishing to $InstallDir ..."
 New-Item -ItemType Directory -Force $InstallDir | Out-Null
-dotnet publish (Join-Path $repo 'src\Kasper.Desktop') -c Release -o $InstallDir --nologo -v q
+# ReadyToRun precompiles the app so startup skips most JIT work.
+$fast = @('-r', 'win-x64', '--self-contained', 'false', '-p:PublishReadyToRun=true')
+dotnet publish (Join-Path $repo 'src\Kasper.Desktop') -c Release -o $InstallDir @fast --nologo -v q
 if ($LASTEXITCODE) { throw "Desktop publish failed" }
-dotnet publish (Join-Path $repo 'src\Kasper.Cli') -c Release -o $InstallDir --nologo -v q
+dotnet publish (Join-Path $repo 'src\Kasper.Cli') -c Release -o $InstallDir @fast --nologo -v q
 if ($LASTEXITCODE) { throw "CLI publish failed" }
 
 # 4. Add to user PATH (once).

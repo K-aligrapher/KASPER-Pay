@@ -28,6 +28,7 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        StartupTimer.Mark("OnStartup");
         var background = e.Args.Contains("--background", StringComparer.OrdinalIgnoreCase);
 
         _singleInstance = new Mutex(initiallyOwned: true, MutexName, out var isFirst);
@@ -43,17 +44,23 @@ public partial class App : System.Windows.Application
         {
             var shell = new DesktopShell(this);
             var webRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+            // Show the window (splash) and warm up the browser engine while the server starts.
+            if (!background) ShowMainWindow();
+            StartupTimer.Mark("window shown");
             _host = KasperApiHost.Create(webRoot, services => services.AddSingleton<IDesktopShell>(shell));
-            await _host.StartAsync();
+            StartupTimer.Mark("host created");
+            await Task.Run(() => _host.StartAsync());
+            StartupTimer.Mark($"host started (db migrate {_host.MigrateMs} ms, kestrel+worker {_host.KestrelMs} ms)");
             _sessions.Write(new SessionInfo(_host.Port, _host.Token, Environment.ProcessId, DateTime.UtcNow));
+            if (_window is not null) await _window.ConnectAsync(_host.BaseUrl, _host.Token);
+            StartupTimer.Mark("ui navigating");
 
             _tray = new TrayIcon(ShowMainWindow, Quit);
             _hotkey = new GlobalHotkey(ToggleFromHotkey);
             if (!_hotkey.Register())
                 _tray.Notify("KASPER", "Ctrl+Space is used by another app, so the hotkey is off. Use the tray icon instead.");
 
-            if (!background) ShowMainWindow();
-            else _tray.Notify("KASPER is running", "Press Ctrl+Space or click the bunny in the tray.");
+            if (background) _tray.Notify("KASPER is running", "Press Ctrl+Space or click the bunny in the tray.");
         }
         catch (Exception ex)
         {
@@ -66,8 +73,11 @@ public partial class App : System.Windows.Application
 
     internal void ShowMainWindow(string? route)
     {
-        if (_host is null) return;
-        _window ??= new MainWindow(_host.BaseUrl, _host.Token, Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+        if (_window is null)
+        {
+            _window = new MainWindow(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+            if (_host is { Port: > 0 }) _ = _window.ConnectAsync(_host.BaseUrl, _host.Token);
+        }
         _window.ShowAndFocus();
         if (route is not null) _window.Navigate(route);
     }

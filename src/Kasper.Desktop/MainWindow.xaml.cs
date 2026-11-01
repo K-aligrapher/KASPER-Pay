@@ -11,20 +11,23 @@ namespace Kasper.Desktop;
 
 public partial class MainWindow : Window
 {
-    private readonly string _baseUrl;
-    private readonly string _token;
+    private string _baseUrl = "http://127.0.0.1:0";
     private readonly string _webRoot;
-    private Task? _init;
+    private readonly Task _init;
 
-    public MainWindow(string baseUrl, string token, string webRoot)
+    /// <summary>Shows instantly with a splash; the browser engine starts while the local server boots.</summary>
+    public MainWindow(string webRoot)
     {
-        _baseUrl = baseUrl;
-        _token = token;
         _webRoot = webRoot;
         InitializeComponent();
 
         var icon = Path.Combine(AppContext.BaseDirectory, "kasper.ico");
-        if (File.Exists(icon)) Icon = BitmapFrame.Create(new Uri(icon));
+        if (File.Exists(icon))
+        {
+            Icon = BitmapFrame.Create(new Uri(icon));
+            var big = BitmapDecoder.Create(new Uri(icon), BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames.MaxBy(f => f.PixelWidth);
+            SplashBunny.Source = big;
+        }
 
         _init = InitializeWebViewAsync();
     }
@@ -73,16 +76,12 @@ public partial class MainWindow : Window
     {
         var env = await CoreWebView2Environment.CreateAsync(userDataFolder: KasperPaths.WebViewData);
         await Web.EnsureCoreWebView2Async(env);
+        StartupTimer.Mark("webview ready");
         var core = Web.CoreWebView2;
 
         core.Settings.AreDevToolsEnabled = Debugger.IsAttached;
         core.Settings.IsStatusBarEnabled = false;
         core.Settings.AreDefaultContextMenusEnabled = Debugger.IsAttached;
-
-        // The token is only given to our own origin.
-        var tokenJson = JsonSerializer.Serialize(_token);
-        await core.AddScriptToExecuteOnDocumentCreatedAsync(
-            $"if (location.origin === {JsonSerializer.Serialize(_baseUrl)}) window.__KASPER__ = Object.freeze({{ token: {tokenJson} }});");
 
         // Stay on the local app; open any other link in the default browser.
         core.NavigationCompleted += (_, _) => _loaded.TrySetResult();
@@ -98,7 +97,24 @@ public partial class MainWindow : Window
             OpenExternal(e.Uri);
         };
 
-        if (File.Exists(Path.Combine(_webRoot, "index.html"))) core.Navigate(_baseUrl + "/");
+    }
+
+    /// <summary>Called once the local API is up: hand over the token and load the UI.</summary>
+    public async Task ConnectAsync(string baseUrl, string token)
+    {
+        await _init;
+        _baseUrl = baseUrl;
+        var core = Web.CoreWebView2;
+        // The token is only given to our own origin.
+        await core.AddScriptToExecuteOnDocumentCreatedAsync(
+            $"if (location.origin === {JsonSerializer.Serialize(baseUrl)}) window.__KASPER__ = Object.freeze({{ token: {JsonSerializer.Serialize(token)} }});");
+        core.NavigationCompleted += (_, _) =>
+        {
+            Web.Visibility = Visibility.Visible;
+            StartupTimer.Mark("ui loaded");
+            Splash.Visibility = Visibility.Collapsed;
+        };
+        if (File.Exists(Path.Combine(_webRoot, "index.html"))) core.Navigate(baseUrl + "/");
         else core.NavigateToString(MissingUiPage);
     }
 

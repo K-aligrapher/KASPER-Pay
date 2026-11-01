@@ -7,6 +7,12 @@
         WindowStartupLocation="CenterScreen"
         Background="#0D0D0D">
     <Grid>
-        <wv2:WebView2 x:Name="Web" DefaultBackgroundColor="#0D0D0D" />
+        <wv2:WebView2 x:Name="Web" DefaultBackgroundColor="#0D0D0D" Visibility="Hidden" />
+        <!-- Splash until the UI has loaded -->
+        <StackPanel x:Name="Splash" VerticalAlignment="Center" HorizontalAlignment="Center">
+            <Image x:Name="SplashBunny" Width="128" Height="128" Margin="0,0,0,16" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+            <TextBlock Text="KASPER" Foreground="#F5B800" FontSize="28" FontWeight="Bold" HorizontalAlignment="Center" FontFamily="Consolas" />
+            <TextBlock Text="waking up…" Foreground="#A3A3A3" FontSize="14" HorizontalAlignment="Center" Margin="0,8,0,0" />
+        </StackPanel>
     </Grid>
 </Window>

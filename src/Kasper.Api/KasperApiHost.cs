@@ -31,6 +31,8 @@ public sealed class KasperApiHost : IAsyncDisposable
     }
 
     public string Token { get; }
+    public long MigrateMs { get; private set; }
+    public long KestrelMs { get; private set; }
     public int Port { get; private set; }
     public IServiceProvider Services => _app.Services;
     public string BaseUrl => $"http://127.0.0.1:{Port}";
@@ -84,8 +86,11 @@ public sealed class KasperApiHost : IAsyncDisposable
 
     public async Task StartAsync(CancellationToken ct = default)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         await _app.Services.MigrateDatabaseAsync(ct);
+        MigrateMs = sw.ElapsedMilliseconds;
         await _app.StartAsync(ct);
+        KestrelMs = sw.ElapsedMilliseconds - MigrateMs;
         var address = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         Port = new Uri(address).Port;
     }
