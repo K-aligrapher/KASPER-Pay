@@ -40,11 +40,24 @@ public static class DependencyInjection
         // Files
         services.AddScoped<FileScope>();
         services.AddScoped<ArtifactStore>();
+        services.AddSingleton<Documents.DocumentConverter>();
+        services.AddSingleton<Notion.NotionSettingsStore>();
+        services.AddSingleton<IIntegrationStatus>(sp => sp.GetRequiredService<Notion.NotionSettingsStore>());
+        services.AddHttpClient<Notion.NotionClient>(c => c.Timeout = TimeSpan.FromSeconds(40));
 
         // Tools (only these can ever run)
         services.AddScoped<ITool, GenerateTextTool>();
         services.AddScoped<ITool, WriteTextFileTool>();
         services.AddScoped<ITool, CommitFileTool>();
+        services.AddScoped<ITool, ImportFileTool>();
+        services.AddScoped<ITool, ConvertTool>();
+        services.AddScoped<ITool, PdfMergeTool>();
+        services.AddScoped<ITool, PdfExtractTool>();
+        services.AddScoped<ITool, PdfRotateTool>();
+        services.AddScoped<ITool, PdfCompressTool>();
+        services.AddScoped<ITool, ImagesToPdfTool>();
+        services.AddScoped<ITool, NotionSearchTool>();
+        services.AddScoped<ITool, NotionCreateTaskTool>();
         services.AddScoped<ITool, MockEchoTool>();
         services.AddScoped<ITool, MockFlakyTool>();
         services.AddScoped<ITool, MockSlowTool>();

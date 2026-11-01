@@ -5,6 +5,8 @@ import { Approvals } from "./views/Approvals";
 import { History } from "./views/History";
 import { Home } from "./views/Home";
 import { Settings } from "./views/Settings";
+import { Documents } from "./views/Documents";
+import { Integrations } from "./views/Integrations";
 
 type View = "home" | "documents" | "projects" | "approvals" | "history" | "integrations" | "settings";
 
@@ -12,9 +14,9 @@ const NAV: { id: View; label: string; milestone?: string; blurb?: string }[] = [
   { id: "home", label: "Home" },
   { id: "approvals", label: "Approvals" },
   { id: "history", label: "History" },
-  { id: "documents", label: "Documents", milestone: "Milestone 3", blurb: "Convert any document and use the PDF toolkit: merge, split, compress, OCR and more." },
+  { id: "documents", label: "Documents" },
   { id: "projects", label: "Projects", milestone: "Milestone 6", blurb: "Link folders, Notion, Slack and GitHub per project, with briefings and tasks." },
-  { id: "integrations", label: "Integrations", milestone: "Milestone 4", blurb: "Notion first, then Slack (as a KASPER bot), then GitHub." },
+  { id: "integrations", label: "Integrations" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -81,6 +83,8 @@ export function App() {
         </div>
         {route.view === "approvals" && <div className="view"><Approvals lastEvent={lastEvent} go={go} /></div>}
         {route.view === "history" && <div className="view"><History selected={route.param} lastEvent={lastEvent} go={go} /></div>}
+        {route.view === "documents" && <div className="view"><Documents go={go} /></div>}
+        {route.view === "integrations" && <div className="view"><Integrations /></div>}
         {route.view === "settings" && <div className="view"><Settings ready={ready} /></div>}
         {current.milestone && (
           <div className="view">

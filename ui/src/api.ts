@@ -120,7 +120,28 @@ export const api = {
   folders: () => call<Folder[]>("/api/settings/folders"),
   addFolder: (path: string) => post<Folder>("/api/settings/folders", { path }),
   removeFolder: (id: number) => call<void>(`/api/settings/folders/${id}`, { method: "DELETE" }),
+  engines: () => call<{ engines: { name: string; installed: boolean; install: string }[] }>("/api/documents/capabilities"),
+  targets: (ext: string) => call<{ to: string; lossy: boolean }[]>(`/api/documents/targets?ext=${encodeURIComponent(ext)}`),
+  upload: async (files: File[]) => {
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f, f.name));
+    const res = await fetch("/api/documents/upload", { method: "POST", body: form, headers: { Authorization: `Bearer ${token()}` } });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new ApiError(body?.code ?? "upload_failed", body?.message ?? "Upload failed.");
+    }
+    return (await res.json()) as Upload[];
+  },
+  job: (job: DocumentJob) => post<WorkflowSummary>("/api/documents/jobs", job),
+  integrations: () => call<Integration[]>("/api/integrations"),
+  connectNotion: (token: string, database: string) => post<{ workspace: string; database: string }>("/api/integrations/notion", { token, database }),
+  testNotion: () => post<{ database: string }>("/api/integrations/notion/test"),
+  disconnectNotion: () => call<void>("/api/integrations/notion", { method: "DELETE" }),
 };
+
+export type Upload = { upload: string; fileName: string; sizeBytes: number; targets: string[] };
+export type DocumentJob = { operation: string; uploads: string[]; to?: string; pages?: string; degrees?: number; quality?: string; fileName?: string };
+export type Integration = { name: string; connected: boolean; detail: string };
 
 /**
  * Live workflow updates (Server-Sent Events over fetch, so the token stays in a header).

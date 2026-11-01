@@ -32,6 +32,35 @@ public sealed class ArtifactStore(KasperDbContext db, IClock clock)
         return artifact;
     }
 
+    /// <summary>Moves a produced file into the step's staging folder and records it.</summary>
+    public async Task<Artifact> CreateFromFileAsync(Guid workflowId, Guid stepId, string sourcePath, string fileName, CancellationToken ct)
+    {
+        var id = Guid.NewGuid();
+        var dir = Path.Combine(StagingDir(workflowId), id.ToString("N"));
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, fileName);
+        File.Move(sourcePath, path);
+        var hash = await CurrentHashAsync(path, ct) ?? "";
+        var artifact = Artifact.Create(id, workflowId, stepId, fileName, path, hash, new FileInfo(path).Length, MimeFor(fileName), clock.UtcNow);
+        db.Artifacts.Add(artifact);
+        await db.SaveChangesAsync(ct);
+        return artifact;
+    }
+
+    /// <summary>A scratch folder for engine work, inside this workflow's staging.</summary>
+    public static string WorkDir(Guid workflowId)
+    {
+        var dir = Path.Combine(StagingDir(workflowId), "work", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    /// <summary>Uploaded input files wait here until a workflow imports them.</summary>
+    public static string UploadDir(Guid token) => Path.Combine(KasperPaths.Staging, "uploads", token.ToString("N"));
+
+    public Task<Artifact?> FindByStepAsync(Guid stepId, CancellationToken ct) =>
+        db.Artifacts.FirstOrDefaultAsync(a => a.StepId == stepId, ct);
+
     public Task<Artifact?> FindAsync(Guid id, CancellationToken ct) => db.Artifacts.FirstOrDefaultAsync(a => a.Id == id, ct);
 
     /// <summary>Hash of the file as it is on disk right now (detects changes after approval).</summary>
@@ -64,6 +93,12 @@ public sealed class ArtifactStore(KasperDbContext db, IClock clock)
         ".html" or ".htm" => "text/html",
         ".xml" => "application/xml",
         ".yaml" or ".yml" => "application/yaml",
+        ".pdf" => "application/pdf",
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         _ => "application/octet-stream",
     };
 }

@@ -133,7 +133,7 @@ public sealed class OllamaPlanner(
             sb.AppendLine($"- {FileScope.RefFor(f)} = {f.Path}{(f.IsDefault ? " (default)" : "")}");
 
         sb.AppendLine("\nTools:");
-        foreach (var d in tools.Available)
+        foreach (var d in tools.Available.Where(t => !t.HiddenFromPlanner))
         {
             var inputs = string.Join("; ", d.Parameters.Select(p => $"{p.Name} ({p.Type.ToString().ToLowerInvariant()}{(p.Required ? ", required" : "")}): {p.Description}"));
             sb.AppendLine($"- {d.Id}: {d.Description} Inputs: {inputs}. Outputs: {string.Join(", ", d.Outputs)}.");

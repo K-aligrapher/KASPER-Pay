@@ -311,13 +311,17 @@ public sealed class WorkflowEngine(
     private async Task<string> HashAsync(ToolDescriptor d, JsonObject resolved, CancellationToken ct)
     {
         var fileHashes = new Dictionary<string, string>();
-        foreach (var p in d.Parameters.Where(p => p.Type == ParamType.ArtifactRef))
+        foreach (var p in d.Parameters.Where(p => p.Type is ParamType.ArtifactRef or ParamType.ArtifactList))
         {
-            if (resolved[p.Name] is JsonValue v && v.TryGetValue<string>(out var s) && Guid.TryParse(s, out var id)
-                && await db.Artifacts.FirstOrDefaultAsync(a => a.Id == id, ct) is { } artifact)
+            var nodes = resolved[p.Name] is JsonArray arr ? arr.ToList() : [resolved[p.Name]];
+            for (var i = 0; i < nodes.Count; i++)
             {
-                fileHashes[p.Name] = await ArtifactStore.CurrentHashAsync(artifact.StagingPath, ct)
-                    ?? (artifact.CommittedPath is not null ? artifact.Sha256 : "missing");
+                if (nodes[i] is JsonValue v && v.TryGetValue<string>(out var s) && Guid.TryParse(s, out var id)
+                    && await db.Artifacts.FirstOrDefaultAsync(a => a.Id == id, ct) is { } artifact)
+                {
+                    fileHashes[$"{p.Name}[{i}]"] = await ArtifactStore.CurrentHashAsync(artifact.StagingPath, ct)
+                        ?? (artifact.CommittedPath is not null ? artifact.Sha256 : "missing");
+                }
             }
         }
         return ActionHasher.Compute(d.Id, d.Version, resolved, fileHashes);

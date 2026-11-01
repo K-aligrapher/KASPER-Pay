@@ -14,6 +14,8 @@ public enum ParamType
     /// <summary>An artifact produced by an earlier step, always a $ref like "$s1.artifact".</summary>
     ArtifactRef,
     Integer,
+    /// <summary>A JSON array of artifact references, e.g. ["$s1.artifact", "$s2.artifact"].</summary>
+    ArtifactList,
 }
 
 public sealed record ToolParameter(
@@ -36,7 +38,9 @@ public sealed record ToolDescriptor(
     TimeSpan Timeout,
     int MaxAttempts,
     bool Idempotent,
-    bool DevOnly = false)
+    bool DevOnly = false,
+    bool HiddenFromPlanner = false,
+    string? Integration = null)
 {
     public bool RequiresApproval => Domain.Rules.ApprovalPolicy.RequiresApproval(Effect, WritesOnlyToStaging);
 }
@@ -72,6 +76,12 @@ public sealed class ToolException(string code, string message, ErrorCategory cat
     public string Code { get; } = code;
     public ErrorCategory Category { get; } = category;
     public bool Retryable => Category is ErrorCategory.Transient or ErrorCategory.RateLimit;
+}
+
+/// <summary>Tells the registry which integrations are connected (tools of others are hidden).</summary>
+public interface IIntegrationStatus
+{
+    bool IsConnected(string integration);
 }
 
 public interface IToolRegistry

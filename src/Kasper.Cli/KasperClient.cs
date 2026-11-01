@@ -119,6 +119,36 @@ internal sealed class KasperClient : IDisposable
     public Task CancelAsync(Guid workflowId, CancellationToken ct) =>
         SendAsync<object>(HttpMethod.Post, $"/api/workflows/{workflowId}/cancel", null, ct);
 
+    public async Task<List<Guid>> UploadAsync(IEnumerable<string> paths, CancellationToken ct)
+    {
+        using var form = new MultipartFormDataContent();
+        var streams = new List<FileStream>();
+        try
+        {
+            foreach (var p in paths)
+            {
+                var fs = File.OpenRead(p);
+                streams.Add(fs);
+                form.Add(new StreamContent(fs), "files", Path.GetFileName(p));
+            }
+            using var res = await _http.PostAsync("/api/documents/upload", form, ct);
+            if (!res.IsSuccessStatusCode)
+            {
+                var err = await res.Content.ReadFromJsonAsync<ErrorDto>(Json, ct);
+                throw new KasperCliException(err?.Message ?? "Upload failed.");
+            }
+            var list = await res.Content.ReadFromJsonAsync<List<JsonElement>>(Json, ct);
+            return list!.Select(e => e.GetProperty("upload").GetGuid()).ToList();
+        }
+        finally
+        {
+            foreach (var s in streams) s.Dispose();
+        }
+    }
+
+    public Task<WorkflowSummaryDto> DocumentJobAsync(object job, CancellationToken ct) =>
+        SendAsync<WorkflowSummaryDto>(HttpMethod.Post, "/api/documents/jobs", job, ct);
+
     public Task ShowWindowAsync(CancellationToken ct, string? route = null) =>
         SendAsync<object>(HttpMethod.Post, "/api/app/show" + (route is null ? "" : $"?route={route}"), null, ct);
 

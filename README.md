@@ -5,14 +5,16 @@
 
 ---
 
-**Status:** Milestones 1–2 done (foundation, workflow runtime + Final Review). See [KASPER_PRD.md](KASPER_PRD.md) for the full plan.
+**Status:** Milestones 1–4 done (foundation, Final Review runtime, Document Studio, Notion). See [KASPER_PRD.md](KASPER_PRD.md).
 
 | Works now | Coming next |
 |---|---|
-| Desktop app with tray bunny, `Ctrl+Space` hotkey, gold/black UI | Milestone 3: Document Studio (convert anything, PDF toolkit) |
-| `kasper` command in cmd / PowerShell / Windows Terminal | Milestone 4: Notion · 5: Slack (bot) · 6: Projects + GitHub |
+| Desktop app with tray bunny, `Ctrl+Space` hotkey, gold/black UI | Milestone 5: Slack (KASPER bot) |
+| `kasper` command in cmd / PowerShell / Windows Terminal | Milestone 6: Projects + GitHub |
 | Tasks in plain English: KASPER plans steps, runs them, and **stops for Final Review** before saving | Milestone 7: more connectors, MCP, scheduling |
 | Approvals, History (full trace + audit log) and Settings (allowed folders) screens, live updates, notifications | |
+| **Documents:** drag & drop to convert (Office, PDF, Markdown, HTML, EPUB…), merge, pick pages, rotate, compress, images → PDF | |
+| **Notion:** connect in Integrations; ask *"add a Notion task to …"*; KASPER shows the task before creating it | |
 
 ## How Final Review works
 
@@ -37,6 +39,8 @@ This publishes KASPER to `%LOCALAPPDATA%\Programs\KASPER`, adds it to your user 
 ```text
 kasper                 # talk to KASPER (pixel bunny banner + prompt)
 kasper ask "..."       # one-shot question or task (follows it and asks for approval)
+kasper convert a.docx --to pdf          # convert (any to any, with engines installed)
+kasper pdf merge a.pdf b.pdf -n all.pdf  # also: pages -p 1-3 | rotate -d 90 | compress -q low | images
 kasper approvals       # what's waiting for you
 kasper review [id]     # approve / edit / reject, with a full preview
 kasper status [id]     # recent tasks, or one task's step-by-step trace
@@ -63,7 +67,7 @@ Environment variables work too (`KASPER__Ollama__Model=...`, see [.env.example](
 ```powershell
 cd ui; npm install; npm run build; cd ..     # UI is served from the desktop app
 dotnet build Kasper.sln
-dotnet test                                    # 84 tests, no Ollama or accounts needed
+dotnet test                                    # 101 tests, no Ollama or accounts needed
 .\src\Kasper.Cli\bin\Debug\net10.0\kasper.exe  # finds the Debug desktop build automatically
 ```
 
@@ -88,3 +92,19 @@ tests/Kasper.UnitTests     domain, adapter and API tests
 - The token is kept in `session.json`, which only your Windows user can read, and is never logged.
 - Only `user`/`assistant` messages are accepted; KASPER's system prompt can't be replaced by callers.
 - Nothing is sent to the cloud: the model runs in Ollama on your machine.
+
+## Document engines
+
+Merge, pick pages, rotate, compress (lossless) and images → PDF are built in. For other conversions install the free engines (`kasper doctor` lists what is missing):
+
+```powershell
+winget install TheDocumentFoundation.LibreOffice   # Office <-> PDF, PDF -> Word
+winget install JohnMacFarlane.Pandoc               # Markdown, HTML, DOCX, EPUB
+winget install ArtifexSoftware.GhostScript         # stronger PDF compression
+```
+
+## Connect Notion
+
+1. Create an internal integration at notion.so/profile/integrations and copy its secret.
+2. In your task database: ••• → Connections → add the integration.
+3. KASPER → Integrations → paste the secret and the database link. The secret is encrypted with Windows DPAPI for your account.

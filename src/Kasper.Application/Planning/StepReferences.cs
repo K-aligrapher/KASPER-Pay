@@ -47,6 +47,18 @@ public static partial class StepReferences
                 if (output is null || !output.TryGetPropertyValue(field, out var produced)) return null;
                 resolved[name] = produced?.DeepClone();
             }
+            else if (value is JsonArray arr)
+            {
+                var items = new JsonArray();
+                foreach (var item in arr)
+                {
+                    if (!TryParse(item, out var k, out var f)) { items.Add(item?.DeepClone()); continue; }
+                    var output = outputsByKey(k);
+                    if (output is null || !output.TryGetPropertyValue(f, out var produced)) return null;
+                    items.Add(produced?.DeepClone());
+                }
+                resolved[name] = items;
+            }
             else
             {
                 resolved[name] = value?.DeepClone();

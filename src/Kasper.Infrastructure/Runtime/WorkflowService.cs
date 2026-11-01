@@ -35,14 +35,14 @@ public sealed class WorkflowService(
     /// <summary>The person using this PC. KASPER v1 has a single local operator.</summary>
     public static string Operator => Environment.UserName;
 
-    public async Task<WorkflowSummaryDto> CreateAsync(string request, Plan plan, CancellationToken ct)
+    public async Task<WorkflowSummaryDto> CreateAsync(string request, Plan plan, CancellationToken ct, int? maxSteps = null)
     {
         if (string.IsNullOrWhiteSpace(request) || request.Length > 8000)
             throw new WorkflowRequestException(400, "invalid_request", "The request must be 1–8000 characters.");
 
         await scope.EnsureDefaultAsync(clock.UtcNow, ct);
         var folderRefs = (await scope.ListAsync(ct)).Select(FileScope.RefFor).ToHashSet();
-        var errors = PlanValidator.Validate(plan, tools, folderRefs, options.CurrentValue.MaxSteps);
+        var errors = PlanValidator.Validate(plan, tools, folderRefs, maxSteps ?? options.CurrentValue.MaxSteps);
         if (errors.Count > 0)
             throw new WorkflowRequestException(400, "plan_invalid", "The plan was rejected by validation.", errors);
 

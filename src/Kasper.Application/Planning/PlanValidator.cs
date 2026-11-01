@@ -22,6 +22,8 @@ public static partial class PlanValidator
     private static readonly HashSet<string> AllowedTextExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".txt", ".md", ".csv", ".json", ".html", ".htm", ".xml", ".yaml", ".yml", ".log",
+        ".pdf", ".docx", ".doc", ".odt", ".rtf", ".xlsx", ".xls", ".ods", ".pptx", ".ppt", ".odp", ".epub",
+        ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".webp",
     };
 
     [GeneratedRegex("^s[0-9]{1,2}$")]
@@ -79,6 +81,19 @@ public static partial class PlanValidator
     public static void ValidateValue(string where, ToolParameter p, JsonNode value,
         IReadOnlyDictionary<string, ToolDescriptor> earlier, ISet<string> allowedFolderRefs, List<string> errors)
     {
+        if (p.Type == ParamType.ArtifactList)
+        {
+            if (value is not JsonArray list || list.Count is < 1 or > 30)
+            {
+                errors.Add($"{where}: '{p.Name}' must be a list of 1–30 references like [\"$s1.artifact\"].");
+                return;
+            }
+            var single = p with { Type = ParamType.ArtifactRef };
+            foreach (var item in list)
+                if (item is not null) ValidateValue(where, single, item, earlier, allowedFolderRefs, errors);
+            return;
+        }
+
         if (StepReferences.LooksLikeRef(value))
         {
             if (!StepReferences.TryParse(value, out var key, out var field))
