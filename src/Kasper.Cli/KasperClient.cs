@@ -146,6 +146,12 @@ internal sealed class KasperClient : IDisposable
         }
     }
 
+    public sealed record EngineDto(string Name, bool Installed, string Install);
+    private sealed record EnginesDto(List<EngineDto> Engines);
+
+    public async Task<IReadOnlyList<EngineDto>> EnginesAsync(CancellationToken ct) =>
+        (await SendAsync<EnginesDto>(HttpMethod.Get, "/api/documents/capabilities", null, ct)).Engines;
+
     public Task<WorkflowSummaryDto> DocumentJobAsync(object job, CancellationToken ct) =>
         SendAsync<WorkflowSummaryDto>(HttpMethod.Post, "/api/documents/jobs", job, ct);
 

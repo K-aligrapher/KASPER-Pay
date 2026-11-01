@@ -177,41 +177,33 @@ internal sealed class OpenCommand : AsyncCommand
 /// <summary>`kasper doctor`: check everything KASPER depends on.</summary>
 internal sealed class Doctor : AsyncCommand
 {
-    private static readonly (string Name, string[] Exes, string Install, string Purpose)[] Engines =
-    [
-        ("LibreOffice", ["soffice", @"C:\Program Files\LibreOffice\program\soffice.exe"], "winget install TheDocumentFoundation.LibreOffice", "Office ↔ PDF"),
-        ("Pandoc", ["pandoc"], "winget install JohnMacFarlane.Pandoc", "Markdown, HTML, DOCX, EPUB"),
-        ("QPDF", ["qpdf"], "winget install QPDF.QPDF", "PDF repair, unlock"),
-        ("Ghostscript", ["gswin64c", "gs"], "winget install ArtifexSoftware.GhostScript", "PDF compression"),
-        ("Tesseract", ["tesseract", @"C:\Program Files\Tesseract-OCR\tesseract.exe"], "winget install UB-Mannheim.TesseractOCR", "OCR"),
-        ("ffmpeg", ["ffmpeg"], "winget install Gyan.FFmpeg", "Audio/video (later)"),
-    ];
+    private static readonly Dictionary<string, string> Purpose = new()
+    {
+        ["LibreOffice"] = "Office <-> PDF, PDF -> Word",
+        ["Pandoc"] = "Markdown, HTML, DOCX, EPUB",
+        ["Ghostscript"] = "Strong PDF compression",
+        ["QPDF"] = "Lossless PDF optimisation",
+        ["Tesseract"] = "OCR (later)",
+    };
 
     public override async Task<int> ExecuteAsync(CommandContext context, CancellationToken cancellation)
     {
         AnsiConsole.MarkupLine($"[bold {Banner.Gold}]KASPER doctor[/]  [grey]v{Ui.Version}[/]\n");
 
-        try
-        {
-            using var client = await KasperClient.ConnectAsync(startIfNeeded: true, cancellation);
-            AnsiConsole.MarkupLine($"[green]●[/] KASPER app running [grey](pid {client.Session.ProcessId}, {client.Session.BaseUrl})[/]");
-            PrintComponents(await client.ReadyAsync(cancellation));
-        }
-        catch (KasperCliException ex)
-        {
-            Ui.Error(ex.Message);
-        }
+        using var client = await KasperClient.ConnectAsync(startIfNeeded: true, cancellation);
+        AnsiConsole.MarkupLine($"[green]●[/] KASPER app running [grey](pid {client.Session.ProcessId}, {client.Session.BaseUrl})[/]");
+        PrintComponents(await client.ReadyAsync(cancellation));
 
-        AnsiConsole.MarkupLine("\n[bold]Document engines[/] [grey](needed from Milestone 3)[/]");
+        // Ask the app itself, so the CLI and the app always agree on what is installed.
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold]Document engines[/]");
         var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.Grey)
             .AddColumn("").AddColumn("Engine").AddColumn("Used for").AddColumn("Install");
-        foreach (var (name, exes, install, purpose) in Engines)
-        {
-            var found = exes.Select(Locate).FirstOrDefault(p => p is not null);
-            table.AddRow(found is null ? "[red]✗[/]" : "[green]✓[/]", name, purpose,
-                found is null ? $"[{Banner.Gold}]{Markup.Escape(install)}[/]" : "[grey]installed[/]");
-        }
+        foreach (var e in await client.EnginesAsync(cancellation))
+            table.AddRow(e.Installed ? "[green]✓[/]" : "[red]✗[/]", e.Name, Purpose.GetValueOrDefault(e.Name, ""),
+                e.Installed ? "[grey]installed[/]" : $"[{Banner.Gold}]{Markup.Escape(e.Install)}[/]");
         AnsiConsole.Write(table);
+        AnsiConsole.MarkupLine("[grey]Merge, pages, rotate, compress and images -> PDF work without any of these.[/]");
         return 0;
     }
 
@@ -219,12 +211,5 @@ internal sealed class Doctor : AsyncCommand
     {
         foreach (var c in ready.Components)
             AnsiConsole.MarkupLine($"{(c.Ok ? "[green]●[/]" : "[red]●[/]")} {Markup.Escape(c.Name)} [grey]— {Markup.Escape(c.Detail)}[/]");
-    }
-
-    private static string? Locate(string exe)
-    {
-        if (Path.IsPathRooted(exe)) return File.Exists(exe) ? exe : null;
-        var paths = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries);
-        return paths.Select(p => Path.Combine(p, exe + ".exe")).FirstOrDefault(File.Exists);
     }
 }

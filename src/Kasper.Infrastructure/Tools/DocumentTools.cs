@@ -178,14 +178,21 @@ public sealed class PdfCompressTool(ArtifactStore artifacts) : DocumentToolBase(
             "low" => "/screen",
             _ => "/ebook",
         };
-        var gs = EngineLocator.Find("Ghostscript");
+        // Best available: Ghostscript (re-encodes images) → QPDF (lossless structure optimisation) → PDFsharp.
         string method;
-        if (gs is not null)
+        if (EngineLocator.Find("Ghostscript") is { } gs)
         {
             await ProcessRunner.RunAsync(gs,
                 ["-sDEVICE=pdfwrite", $"-dPDFSETTINGS={preset}", "-dCompatibilityLevel=1.5", "-dNOPAUSE", "-dBATCH", "-dSAFER", "-dQUIET", $"-sOutputFile={output}", a.StagingPath],
                 work, ct);
             method = "ghostscript";
+        }
+        else if (EngineLocator.Find("QPDF") is { } qpdf)
+        {
+            await ProcessRunner.RunAsync(qpdf,
+                ["--object-streams=generate", "--compress-streams=y", "--recompress-flate", "--compression-level=9", a.StagingPath, output],
+                work, ct, okExitCodes: [0, 3]); // 3 = succeeded with warnings
+            method = "qpdf";
         }
         else
         {
