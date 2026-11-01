@@ -18,7 +18,11 @@ export function Home({ lastEvent, go }: { lastEvent: WorkflowEvent | null; go: (
     inputRef.current?.focus();
   }, []);
 
-  useEffect(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), [items, busy]);
+  // Braces matter: newer WebView2 returns a Promise from scrollIntoView, and React would
+  // treat that as the effect's cleanup and crash ("destroy is not a function" → blank UI).
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [items, busy]);
 
   // Keep workflow cards live.
   useEffect(() => {

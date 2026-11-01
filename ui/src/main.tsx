@@ -5,9 +5,12 @@ import "@fontsource/inter/400.css";
 import "@fontsource/inter/600.css";
 import "./theme.css";
 import { App } from "./App";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>
 );
