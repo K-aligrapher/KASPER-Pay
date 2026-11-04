@@ -29,7 +29,7 @@ internal static class DocumentEndpoints
     {
         app.MapGet("/api/documents/capabilities", () => new
         {
-            Engines = new[] { "LibreOffice", "Pandoc", "Ghostscript", "QPDF", "Tesseract" }
+            Engines = new[] { "LibreOffice", "Pandoc", "Ghostscript", "QPDF", "Tesseract", "pdf2docx" }
                 .Select(e => new { Name = e, Installed = EngineLocator.Find(e) is not null, Install = EngineLocator.InstallHints[e] }),
         });
 

@@ -14,6 +14,7 @@ public static class EngineLocator
         ["Ghostscript"] = ["gswin64c", "gs"],
         ["QPDF"] = ["qpdf"],
         ["Tesseract"] = ["tesseract", @"C:\Program Files\Tesseract-OCR\tesseract.exe"],
+        ["pdf2docx"] = [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"KASPER\engines\py\Scripts\pdf2docx.exe"), "pdf2docx"],
     };
 
     /// <summary>Installers that put engines in versioned folders not on PATH (e.g. "C:\Program Files\qpdf 12.4.2\bin").</summary>
@@ -31,6 +32,7 @@ public static class EngineLocator
         ["Ghostscript"] = "scoop install ghostscript  (or ghostscript.com/releases)",
         ["QPDF"] = "winget install QPDF.QPDF",
         ["Tesseract"] = "winget install UB-Mannheim.TesseractOCR",
+        ["pdf2docx"] = @"python -m venv %LOCALAPPDATA%\KASPER\engines\py; then %LOCALAPPDATA%\KASPER\engines\py\Scripts\pip install pdf2docx",
     };
 
     /// <summary>

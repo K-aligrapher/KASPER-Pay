@@ -93,5 +93,5 @@
 1. PDF → images, PDF repair (QPDF), metadata (FR-202/204)
 2. Notion update/append, Slack thread replies + file upload (FR-400/401)
 3. Local project task list synced with Notion (FR-304)
-4. Better PDF → Word engine (pdf2docx) and PDF page preview (FR-211)
+4. PDF page preview (FR-211)  (pdf2docx for PDF → Word and Word → PowerPoint: done)
 5. Start at login, tab completion, per-task model override, presets

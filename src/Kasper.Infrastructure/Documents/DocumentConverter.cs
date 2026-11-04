@@ -16,7 +16,7 @@ public sealed class DocumentConverter
     private static readonly string[] LoText = ["doc", "docx", "odt", "rtf", "txt", "html", "htm"];
     private static readonly string[] LoSheets = ["xls", "xlsx", "ods", "csv"];
     private static readonly string[] LoSlides = ["ppt", "pptx", "odp"];
-    private static readonly string[] PandocIn = ["md", "html", "htm", "docx", "odt", "epub", "rtf", "txt"];
+    private static readonly string[] PandocIn = ["md", "html", "htm", "docx", "odt", "epub", "rtf", "txt", "pptx"];
     private static readonly string[] PandocOut = ["md", "html", "docx", "odt", "epub", "rtf", "txt"];
     private static readonly string[] Images = ["png", "jpg", "jpeg", "gif", "bmp"];
 
@@ -28,20 +28,26 @@ public sealed class DocumentConverter
         foreach (var f in LoText) foreach (var t in new[] { "pdf", "docx", "odt", "rtf", "txt", "html" }) if (f != t) e.Add(new(f, t, "LibreOffice", t == "txt"));
         foreach (var f in LoSheets) foreach (var t in new[] { "pdf", "xlsx", "ods", "csv", "html" }) if (f != t) e.Add(new(f, t, "LibreOffice", t is "csv"));
         foreach (var f in LoSlides) foreach (var t in new[] { "pdf", "pptx", "odp" }) if (f != t) e.Add(new(f, t, "LibreOffice", false));
-        e.Add(new("pdf", "docx", "LibreOffice", true)); // PDF import is inherently approximate
-        foreach (var f in PandocIn) foreach (var t in PandocOut) if (f != t && !(f is "html" or "htm" && t == "html")) e.Add(new(f, t, "Pandoc", t == "txt"));
+        e.Add(new("pdf", "docx", "pdf2docx", false)); // rebuilds paragraphs, tables, images
+        e.Add(new("pdf", "docx", "LibreOffice", true)); // fallback: approximate
+        foreach (var f in PandocIn) foreach (var t in PandocOut) if (f != t && !(f is "html" or "htm" && t == "html")) e.Add(new(f, t, "Pandoc", t == "txt" || f == "pptx"));
+        // Text documents -> slides: one slide per heading (Pandoc), then LibreOffice can make ppt/odp/pdf.
+        foreach (var f in new[] { "md", "html", "htm", "docx", "odt" }) e.Add(new(f, "pptx", "Pandoc", true));
         foreach (var f in Images) e.Add(new(f, "pdf", "PDFsharp", false));
         return e;
     }
 
     private static bool Installed(string engine) => engine == "PDFsharp" || EngineLocator.Find(engine) is not null;
 
+    /// <summary>Installed edges; when two engines offer the same hop, the first listed (better) one wins.</summary>
+    private static List<Edge> Usable() => AllEdges.Where(x => Installed(x.Engine)).DistinctBy(x => (x.From, x.To)).ToList();
+
     public static string Ext(string fileName) => Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
 
     /// <summary>Targets reachable from a format with the engines installed now.</summary>
     public static IReadOnlyList<string> TargetsFor(string from)
     {
-        var edges = AllEdges.Where(x => Installed(x.Engine)).ToList();
+        var edges = Usable();
         var seen = new HashSet<string> { from };
         var queue = new Queue<(string F, int Depth)>([(from, 0)]);
         while (queue.Count > 0)
@@ -57,7 +63,7 @@ public sealed class DocumentConverter
     /// <summary>Shortest route (fewest hops, then fewest lossy hops).</summary>
     private static List<Edge>? Route(string from, string to)
     {
-        var edges = AllEdges.Where(x => Installed(x.Engine)).ToList();
+        var edges = Usable();
         var best = new Dictionary<string, (int Hops, int Lossy, List<Edge> Path)> { [from] = (0, 0, []) };
         var queue = new Queue<string>([from]);
         while (queue.Count > 0)
@@ -120,10 +126,16 @@ public sealed class DocumentConverter
                 await ProcessRunner.RunAsync(EngineLocator.Require("LibreOffice"), args, outDir, ct);
                 break;
             case "Pandoc":
+                var pArgs = new List<string>();
+                if (e.From is "docx" or "odt" or "epub" or "pptx") pArgs.Add($"--extract-media={Path.Combine(outDir, "media")}");
                 var fmt = e.To switch { "txt" => "plain", "md" => "gfm", _ => e.To };
                 var inFmt = e.From switch { "txt" => "markdown", "md" => "gfm", "htm" => "html", _ => e.From };
                 await ProcessRunner.RunAsync(EngineLocator.Require("Pandoc"),
-                    ["-f", inFmt, "-t", fmt, "-s", "-o", output, input], outDir, ct);
+                    [.. pArgs, "-f", inFmt, "-t", fmt, "-s", "-o", output, input], outDir, ct);
+                break;
+            case "pdf2docx":
+                await ProcessRunner.RunAsync(EngineLocator.Require("pdf2docx"),
+                    ["convert", input, output, "--multi_processing=False"], outDir, ct);
                 break;
             case "PDFsharp":
                 PdfOps.ImagesToPdf([input], output);

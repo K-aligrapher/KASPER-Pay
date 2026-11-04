@@ -180,7 +180,8 @@ internal sealed class Doctor : AsyncCommand
     private static readonly Dictionary<string, string> Purpose = new()
     {
         ["LibreOffice"] = "Office <-> PDF, PDF -> Word",
-        ["Pandoc"] = "Markdown, HTML, DOCX, EPUB",
+        ["Pandoc"] = "Markdown, HTML, DOCX, EPUB, Word -> PowerPoint",
+        ["pdf2docx"] = "PDF -> Word (keeps layout)",
         ["Ghostscript"] = "Strong PDF compression",
         ["QPDF"] = "Lossless PDF optimisation",
         ["Tesseract"] = "OCR (later)",

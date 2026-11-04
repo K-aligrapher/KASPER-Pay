@@ -73,6 +73,14 @@ if (-not $NoShortcut) {
     $s.Save()
 }
 
+# Better PDF -> Word (pdf2docx, free/open source) in KASPER's own Python environment.
+$py = Join-Path $env:LOCALAPPDATA 'KASPER\engines\py'
+if (-not (Test-Path "$py\Scripts\pdf2docx.exe") -and (Get-Command python -ErrorAction SilentlyContinue)) {
+    Write-Host "Installing pdf2docx (PDF -> Word)..."
+    python -m venv $py
+    & "$py\Scripts\python.exe" -m pip install -q pdf2docx
+}
+
 Write-Host ""
 Write-Host "Done! Open a NEW cmd or PowerShell window and type:  kasper" -ForegroundColor Yellow
 Write-Host "Or press Ctrl+Space after starting KASPER from the Start menu."
