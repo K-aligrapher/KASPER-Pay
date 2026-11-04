@@ -265,6 +265,39 @@ namespace Kasper.Infrastructure.Persistence.Migrations
                     b.ToTable("Projects");
                 });
 
+            modelBuilder.Entity("Kasper.Domain.Entities.ProjectTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Done")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("DoneAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("NotionWorkflowId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectTasks");
+                });
+
             modelBuilder.Entity("Kasper.Domain.Entities.Schedule", b =>
                 {
                     b.Property<Guid>("Id")
@@ -498,6 +531,15 @@ namespace Kasper.Infrastructure.Persistence.Migrations
                     b.HasOne("Kasper.Domain.Entities.Workflow", null)
                         .WithMany()
                         .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Kasper.Domain.Entities.ProjectTask", b =>
+                {
+                    b.HasOne("Kasper.Domain.Entities.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

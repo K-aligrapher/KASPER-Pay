@@ -166,3 +166,105 @@ public sealed class OcrTool(ArtifactStore artifacts) : DocumentToolBase(artifact
         return await StageAsync(context, output, $"{Stem(a)}-searchable.pdf", ct);
     }
 }
+
+/// <summary>pdf.to_images: one PNG/JPG per page (Ghostscript). Several pages are zipped together.</summary>
+public sealed class PdfToImagesTool(ArtifactStore artifacts) : DocumentToolBase(artifacts), ITool
+{
+    public ToolDescriptor Descriptor { get; } = Pdf("pdf.to_images", "Turn each PDF page into an image (PNG or JPG; several pages come as a .zip).",
+    [
+        new ToolParameter("artifact", ParamType.ArtifactRef, true, "The PDF."),
+        new ToolParameter("format", ParamType.Text, false, "png (default) or jpg.", 4),
+        new ToolParameter("dpi", ParamType.Integer, false, "Resolution, 72–600 (default 150)."),
+    ], timeoutSec: 600);
+
+    public async Task<ToolResult> ExecuteAsync(ToolContext context, JsonObject input, CancellationToken ct)
+    {
+        var a = await ArtifactAsync(input["artifact"], ct);
+        PdfMergeTool.RequirePdf([a]);
+        var format = (Input.OptStr(input, "format") ?? "png").ToLowerInvariant().Replace("jpeg", "jpg");
+        if (format is not ("png" or "jpg")) throw new ToolException("format_invalid", "Choose png or jpg.", ErrorCategory.Validation);
+        var dpi = Math.Clamp(Input.Int(input, "dpi", 150), 72, 600);
+        var work = Path.Combine(ArtifactStore.WorkDir(context.WorkflowId), "images-" + context.StepId.ToString("N")[..8]);
+        Directory.CreateDirectory(work);
+        var stem = Stem(a);
+        await ProcessRunner.RunAsync(EngineLocator.Require("Ghostscript"),
+            [format == "png" ? "-sDEVICE=png16m" : "-sDEVICE=jpeg", $"-r{dpi}", "-dJPEGQ=90", "-dTextAlphaBits=4", "-dGraphicsAlphaBits=4",
+             "-dNOPAUSE", "-dBATCH", "-dSAFER", "-dQUIET", $"-sOutputFile={Path.Combine(work, $"{stem}-page-%03d.{format}")}", a.StagingPath], work, ct);
+        var pages = Directory.GetFiles(work, $"*.{format}").Order().ToList();
+        if (pages.Count == 0) throw new ToolException("engine_no_output", "Ghostscript produced no images.", ErrorCategory.Permanent);
+        if (pages.Count == 1) return await StageAsync(context, pages[0], $"{stem}.{format}", ct);
+        var zip = Path.Combine(ArtifactStore.WorkDir(context.WorkflowId), $"{stem}-pages-{context.StepId:N}.zip");
+        if (File.Exists(zip)) File.Delete(zip);
+        System.IO.Compression.ZipFile.CreateFromDirectory(work, zip);
+        return await StageAsync(context, zip, $"{stem}-pages.zip", ct, new JsonObject { ["pages"] = pages.Count });
+    }
+}
+
+/// <summary>pdf.repair: rebuilds a damaged PDF's structure with QPDF (FR-204).</summary>
+public sealed class PdfRepairTool(ArtifactStore artifacts) : DocumentToolBase(artifacts), ITool
+{
+    public ToolDescriptor Descriptor { get; } = Pdf("pdf.repair", "Try to fix a damaged or broken PDF.",
+        [new ToolParameter("artifact", ParamType.ArtifactRef, true, "The PDF.")], timeoutSec: 300);
+
+    public async Task<ToolResult> ExecuteAsync(ToolContext context, JsonObject input, CancellationToken ct)
+    {
+        var a = await ArtifactAsync(input["artifact"], ct);
+        PdfMergeTool.RequirePdf([a]);
+        var work = ArtifactStore.WorkDir(context.WorkflowId);
+        var output = Path.Combine(work, $"repaired-{context.StepId:N}.pdf");
+        // Exit 3 = repaired with warnings, which is the normal case for a damaged file.
+        try
+        {
+            await ProcessRunner.RunAsync(EngineLocator.Require("QPDF"), ["--object-streams=generate", "--compress-streams=y", a.StagingPath, output], work, ct, okExitCodes: [0, 3]);
+        }
+        catch (ToolException ex) when (ex.Code == "engine_failed")
+        {
+            throw new ToolException("pdf_unrepairable", "This PDF is too damaged to repair.", ErrorCategory.Permanent, ex);
+        }
+        if (!File.Exists(output)) throw new ToolException("pdf_unrepairable", "This PDF is too damaged to repair.", ErrorCategory.Permanent);
+        return await StageAsync(context, output, $"{Stem(a)}-repaired.pdf", ct);
+    }
+}
+
+/// <summary>pdf.metadata: set title, author, subject and keywords (FR-204). Empty fields are left as they are.</summary>
+public sealed class PdfMetadataTool(ArtifactStore artifacts) : DocumentToolBase(artifacts), ITool
+{
+    public ToolDescriptor Descriptor { get; } = Pdf("pdf.metadata", "Set a PDF's title, author, subject or keywords.",
+    [
+        new ToolParameter("artifact", ParamType.ArtifactRef, true, "The PDF."),
+        new ToolParameter("title", ParamType.Text, false, "Document title.", 300),
+        new ToolParameter("author", ParamType.Text, false, "Author.", 200),
+        new ToolParameter("subject", ParamType.Text, false, "Subject.", 300),
+        new ToolParameter("keywords", ParamType.Text, false, "Keywords, comma separated.", 300),
+    ]);
+
+    public async Task<ToolResult> ExecuteAsync(ToolContext context, JsonObject input, CancellationToken ct)
+    {
+        var a = await ArtifactAsync(input["artifact"], ct);
+        PdfMergeTool.RequirePdf([a]);
+        var fields = new[] { "title", "author", "subject", "keywords" }.Select(k => (k, v: Input.OptStr(input, k))).Where(f => f.v is not null).ToList();
+        if (fields.Count == 0) throw new ToolException("nothing_to_set", "Fill in at least one field.", ErrorCategory.Validation);
+        var output = Path.Combine(ArtifactStore.WorkDir(context.WorkflowId), $"meta-{context.StepId:N}.pdf");
+        File.Copy(a.StagingPath, output, overwrite: true);
+        try
+        {
+            using var doc = PdfReader.Open(output, PdfDocumentOpenMode.Modify);
+            foreach (var (k, v) in fields)
+            {
+                switch (k)
+                {
+                    case "title": doc.Info.Title = v; break;
+                    case "author": doc.Info.Author = v; break;
+                    case "subject": doc.Info.Subject = v; break;
+                    default: doc.Info.Keywords = v; break;
+                }
+            }
+            doc.Save(output);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not ToolException)
+        {
+            throw new ToolException("pdf_unreadable", $"{a.FileName} could not be edited (it may be damaged or password-protected; try Repair or Unlock first).", ErrorCategory.Permanent, ex);
+        }
+        return await StageAsync(context, output, a.FileName, ct);
+    }
+}

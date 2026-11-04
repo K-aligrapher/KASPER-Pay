@@ -42,3 +42,16 @@ public sealed class Schedule
             .Any(d => d.Length >= 3 && day.ToString().StartsWith(d[..3], StringComparison.OrdinalIgnoreCase)),
     };
 }
+
+/// <summary>A to-do inside a project (FR-304). Kept locally; can be sent to Notion.</summary>
+public sealed class ProjectTask
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProjectId { get; set; }
+    public required string Title { get; set; }
+    public bool Done { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
+    public DateTime? DoneAtUtc { get; set; }
+    /// <summary>Set when this task was sent to Notion.</summary>
+    public Guid? NotionWorkflowId { get; set; }
+}

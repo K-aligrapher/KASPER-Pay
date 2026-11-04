@@ -67,7 +67,7 @@ Environment variables work too (`KASPER__Ollama__Model=...`, see [.env.example](
 ```powershell
 cd ui; npm install; npm run build; cd ..     # UI is served from the desktop app
 dotnet build Kasper.sln
-dotnet test                                    # 122 tests, no Ollama or accounts needed
+dotnet test                                    # 137 tests, no Ollama or accounts needed
 .\src\Kasper.Cli\bin\Debug\net10.0\kasper.exe  # finds the Debug desktop build automatically
 ```
 

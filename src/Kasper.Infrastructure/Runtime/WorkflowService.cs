@@ -233,6 +233,17 @@ public sealed class WorkflowService(
         var preview = JsonSerializer.Deserialize<StoredPreview>(a.PreviewJson) ?? new StoredPreview([], null, []);
         var step = steps.FirstOrDefault(s => s.Id == a.StepId);
         var editable = new List<EditableFieldDto>();
+        Guid? previewArtifact = null;
+        if (step is not null && JsonNode.Parse(step.InputJson) is JsonObject stepInput
+            && stepInput["artifact"] is JsonValue av && av.TryGetValue<string>(out var aid))
+        {
+            // Usually a reference like "$s2.artifact" to an earlier step's output.
+            if (aid.StartsWith('$') && aid.Split('.') is [var refKey, "artifact"]
+                && steps.FirstOrDefault(s => s.Key == refKey[1..])?.OutputJson is { } outJson
+                && JsonNode.Parse(outJson)?["artifact"] is JsonValue ov && ov.TryGetValue<string>(out var resolved))
+                aid = resolved;
+            if (Guid.TryParse(aid, out var ag)) previewArtifact = ag;
+        }
         if (step is not null && tools.Find(step.ToolId) is { } tool)
         {
             var input = JsonNode.Parse(step.InputJson) as JsonObject ?? [];
@@ -250,7 +261,7 @@ public sealed class WorkflowService(
         }
         return new ApprovalDto(a.Id, a.WorkflowId, a.StepId, wf.Summary, a.Title, a.TargetDescription, a.Status.ToString(),
             a.RequestedAtUtc, a.ExpiresAtUtc, a.DecidedAtUtc, a.DecidedBy, a.Note,
-            preview.Fields, preview.Content, preview.Warnings, editable);
+            preview.Fields, preview.Content, preview.Warnings, editable, previewArtifact);
     }
 
     /// <summary>Trace view of step data: long text is shortened and secret-looking keys are hidden (FR-028).</summary>

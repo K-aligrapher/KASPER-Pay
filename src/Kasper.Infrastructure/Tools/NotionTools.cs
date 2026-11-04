@@ -74,3 +74,76 @@ public sealed class NotionCreateTaskTool(NotionClient notion, NotionSettingsStor
 
     private static ToolResult Result(NotionPage p) => new(new JsonObject { ["pageId"] = p.Id, ["url"] = p.Url });
 }
+
+/// <summary>notion.update_task: change a task's status and/or title (asks you first, shows old → new).</summary>
+public sealed class NotionUpdateTaskTool(NotionClient notion, NotionSettingsStore store) : ITool
+{
+    public ToolDescriptor Descriptor { get; } = new(
+        "notion.update_task", 1, "Change an existing Notion task's status (e.g. Done, In progress) and/or title (asks you first).",
+        EffectClass.ExternalWrite, false,
+        [
+            new ToolParameter("task", ParamType.Text, true, "The task's current title or its Notion link.", 300),
+            new ToolParameter("status", ParamType.Text, false, "New status, e.g. Done.", 60, Editable: true),
+            new ToolParameter("newTitle", ParamType.Text, false, "New title.", 200, Editable: true),
+        ],
+        ["pageId", "url"], TimeSpan.FromSeconds(45), MaxAttempts: 3, Idempotent: true, Integration: "notion");
+
+    public async Task<ToolPreview> PreviewAsync(ToolContext context, JsonObject input, CancellationToken ct)
+    {
+        var s = NotionAccess.Settings(store);
+        var page = await notion.ResolvePageAsync(s, Input.Str(input, "task"), ct);
+        var p = NotionClient.AsPage(page);
+        var fields = new List<PreviewField> { new("Task", p.Title), new("Database", s.DatabaseTitle) };
+        if (Input.OptStr(input, "status") is { } st)
+            fields.Add(new("Status", $"{NotionClient.StatusProperty(page)?.Current ?? "(no status column)"} → {st}"));
+        if (Input.OptStr(input, "newTitle") is { } nt) fields.Add(new("New title", nt));
+        return new ToolPreview($"Update Notion task: {p.Title}", $"Notion › {s.DatabaseTitle} › {p.Title}", fields, null);
+    }
+
+    public async Task<ToolResult> ExecuteAsync(ToolContext context, JsonObject input, CancellationToken ct)
+    {
+        var s = NotionAccess.Settings(store);
+        var page = await notion.ResolvePageAsync(s, Input.Str(input, "task"), ct);
+        // Setting the same values twice is harmless, so retries need no reconciliation.
+        await notion.UpdatePageAsync(s, page, Input.OptStr(input, "status"), Input.OptStr(input, "newTitle"), ct);
+        var p = NotionClient.AsPage(page);
+        return new ToolResult(new JsonObject { ["pageId"] = p.Id, ["url"] = p.Url });
+    }
+}
+
+/// <summary>notion.append: add text to the end of an existing page (asks you first; never adds it twice).</summary>
+public sealed class NotionAppendTool(NotionClient notion, NotionSettingsStore store) : ITool
+{
+    public ToolDescriptor Descriptor { get; } = new(
+        "notion.append", 1, "Add notes/text to the end of an existing Notion page or task (asks you first).",
+        EffectClass.ExternalWrite, false,
+        [
+            new ToolParameter("page", ParamType.Text, true, "A task title or a Notion page link.", 300),
+            new ToolParameter("text", ParamType.Text, true, "Text to add (blank lines start new paragraphs).", 8000, Editable: true),
+        ],
+        ["pageId", "url"], TimeSpan.FromSeconds(45), MaxAttempts: 3, Idempotent: true, Integration: "notion");
+
+    public async Task<ToolPreview> PreviewAsync(ToolContext context, JsonObject input, CancellationToken ct)
+    {
+        var s = NotionAccess.Settings(store);
+        var p = NotionClient.AsPage(await notion.ResolvePageAsync(s, Input.Str(input, "page"), ct));
+        return new ToolPreview($"Add to Notion page: {p.Title}", $"Notion › {p.Title}", [new("Page", p.Title), new("Link", p.Url)], Input.Str(input, "text"));
+    }
+
+    public async Task<ToolResult> ExecuteAsync(ToolContext context, JsonObject input, CancellationToken ct)
+    {
+        var s = NotionAccess.Settings(store);
+        var p = NotionClient.AsPage(await notion.ResolvePageAsync(s, Input.Str(input, "page"), ct));
+        var text = Input.Str(input, "text").Replace("\r\n", "\n").Trim();
+        if (context.Attempt > 1)
+        {
+            // A previous attempt may have succeeded before timing out: don't add the text twice.
+            var existing = await notion.LastBlocksTextAsync(s.Token, p.Id, ct);
+            var last = text.Split("\n\n", StringSplitOptions.RemoveEmptyEntries)[^1];
+            if (existing.TrimEnd().EndsWith(last.Length > 1900 ? last[..1900] : last, StringComparison.Ordinal))
+                return new ToolResult(new JsonObject { ["pageId"] = p.Id, ["url"] = p.Url });
+        }
+        await notion.AppendAsync(s.Token, p.Id, text, ct);
+        return new ToolResult(new JsonObject { ["pageId"] = p.Id, ["url"] = p.Url });
+    }
+}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type Approval, type WorkflowEvent } from "../api";
+import { api, api2, ApiError, type Approval, type WorkflowEvent } from "../api";
 import { Bunny } from "../Bunny";
 import { timeAgo } from "../components";
 
@@ -123,6 +123,7 @@ function ReviewCard({ approval: a, onChanged }: { approval: Approval; onChanged:
       {a.warnings.map((w) => <div key={w} className="warning">⚠ {w}</div>)}
 
       {a.content !== null && <pre className="content-preview">{a.content}</pre>}
+      {a.previewArtifactId && <FilePreview artifactId={a.previewArtifactId} />}
 
       {editing && (
         <div className="edit-form">
@@ -160,5 +161,31 @@ function ReviewCard({ approval: a, onChanged }: { approval: Approval; onChanged:
         )}
       </div>
     </article>
+  );
+}
+
+/** Renders a staged PDF (pages, via the built-in viewer) or image so you see exactly what will be saved/sent. */
+function FilePreview({ artifactId }: { artifactId: string }) {
+  const [url, setUrl] = useState<{ src: string; type: string } | null>(null);
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    let src: string | null = null;
+    let live = true;
+    api2.previewUrl(artifactId).then(async (u) => {
+      if (!u || !live) return;
+      src = u;
+      const type = (await fetch(u).then((r) => r.blob())).type;
+      if (live) setUrl({ src: u, type });
+    }).catch(() => {});
+    return () => { live = false; if (src) URL.revokeObjectURL(src); };
+  }, [artifactId]);
+  if (!url) return null;
+  return (
+    <div className="file-preview">
+      <button className="btn-ghost btn-sm" onClick={() => setOpen(!open)}>{open ? "Hide preview" : "Show preview"}</button>
+      {open && (url.type.startsWith("image/")
+        ? <img src={url.src} alt="Preview" />
+        : <iframe src={url.src} title="PDF preview" />)}
+    </div>
   );
 }

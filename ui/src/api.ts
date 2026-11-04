@@ -65,6 +65,7 @@ export type Approval = {
   content: string | null;
   warnings: string[];
   editable: EditableField[];
+  previewArtifactId: string | null;
 };
 
 export type WorkflowDetail = {
@@ -163,12 +164,26 @@ export const api2 = {
   deleteSchedule: (id: string) => call<void>(`/api/schedules/${id}`, { method: "DELETE" }),
   mcp: () => call<{ servers: { name: string; running: boolean; tools: number; error: string | null }[]; tools: { id: string; description: string; requiresApproval: boolean }[] }>("/api/mcp"),
   upload: (token: string) => call<Upload>(`/api/documents/uploads/${token}`),
+  tasks: (projectId: string) => call<ProjectTask[]>(`/api/projects/${projectId}/tasks`),
+  addTask: (projectId: string, title: string) => post<ProjectTask>(`/api/projects/${projectId}/tasks`, { title }),
+  updateTask: (projectId: string, id: string, edit: { title?: string; done?: boolean }) =>
+    call<ProjectTask>(`/api/projects/${projectId}/tasks/${id}`, { method: "PUT", body: JSON.stringify(edit) }),
+  deleteTask: (projectId: string, id: string) => call<void>(`/api/projects/${projectId}/tasks/${id}`, { method: "DELETE" }),
+  taskToNotion: (projectId: string, id: string) => post<ProjectTask>(`/api/projects/${projectId}/tasks/${id}/notion`),
+  /** Object URL for a staged PDF/image (for Final Review), or null if it can't be previewed. */
+  previewUrl: async (artifactId: string) => {
+    const res = await fetch(`/api/artifacts/${artifactId}/preview`, { headers: { Authorization: `Bearer ${token()}` } });
+    return res.ok ? URL.createObjectURL(await res.blob()) : null;
+  },
 };
+
+export type ProjectTask = { id: string; projectId: string; title: string; done: boolean; createdAtUtc: string; doneAtUtc: string | null; notionWorkflowId: string | null };
 
 export type Upload = { upload: string; fileName: string; sizeBytes: number; targets: string[] };
 export type DocumentJob = {
   operation: string; uploads: string[]; to?: string; pages?: string; degrees?: number; quality?: string; fileName?: string;
   watermark?: string; pageNumbers?: boolean; password?: string; language?: string;
+  format?: string; dpi?: number; title?: string; author?: string; subject?: string; keywords?: string;
 };
 export type Integration = { name: string; connected: boolean; detail: string };
 

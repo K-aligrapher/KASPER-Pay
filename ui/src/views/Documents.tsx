@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, api2, ApiError, type Upload, type WorkflowSummary } from "../api";
 import { Bunny } from "../Bunny";
 
-type Op = "convert" | "merge" | "images_to_pdf" | "extract" | "rotate" | "compress" | "stamp" | "protect" | "unlock" | "ocr";
+type Op = "convert" | "merge" | "images_to_pdf" | "extract" | "rotate" | "compress" | "stamp" | "protect" | "unlock" | "ocr" | "to_images" | "repair" | "metadata";
 
 const OPS: { id: Op; label: string; hint: string }[] = [
   { id: "convert", label: "Convert", hint: "Any format to any format" },
@@ -15,6 +15,9 @@ const OPS: { id: Op; label: string; hint: string }[] = [
   { id: "ocr", label: "OCR", hint: "Make scanned PDFs or images searchable" },
   { id: "protect", label: "Protect", hint: "Add a password (never stored)" },
   { id: "unlock", label: "Unlock", hint: "Remove a password you know" },
+  { id: "to_images", label: "PDF → images", hint: "One PNG/JPG per page" },
+  { id: "repair", label: "Repair", hint: "Fix a damaged PDF" },
+  { id: "metadata", label: "Title / author", hint: "Edit a PDF's title, author, subject, keywords" },
 ];
 
 /** Document Studio (PRD §9): local conversions and PDF tools. Results wait in Approvals before saving. */
@@ -35,6 +38,9 @@ export function Documents({ go, preload }: { go: (r: string) => void; preload?: 
   const [pageNumbers, setPageNumbers] = useState(false);
   const [password, setPassword] = useState("");
   const [language, setLanguage] = useState("eng");
+  const [imageFormat, setImageFormat] = useState("png");
+  const [dpi, setDpi] = useState(150);
+  const [meta, setMeta] = useState({ title: "", author: "", subject: "", keywords: "" });
 
   // Files sent from Explorer ("Send to → KASPER") arrive as upload ids in the route.
   useEffect(() => {
@@ -92,6 +98,9 @@ export function Documents({ go, preload }: { go: (r: string) => void; preload?: 
         pageNumbers: op === "stamp" ? pageNumbers : undefined,
         password: op === "protect" || op === "unlock" ? password : undefined,
         language: op === "ocr" ? language : undefined,
+        format: op === "to_images" ? imageFormat : undefined,
+        dpi: op === "to_images" ? dpi : undefined,
+        ...(op === "metadata" ? Object.fromEntries(Object.entries(meta).filter(([, v]) => v.trim())) : {}),
       });
       setPassword("");
       setStarted(wf);
@@ -108,7 +117,8 @@ export function Documents({ go, preload }: { go: (r: string) => void; preload?: 
     files.length > 0 &&
     ((op === "convert" && to) || (op === "merge" && allPdf && files.length > 1) || (op === "images_to_pdf") ||
       (op === "extract" && allPdf && pages.trim()) || ((op === "rotate" || op === "compress") && allPdf) ||
-      (op === "stamp" && allPdf && (watermark.trim() || pageNumbers)) || ((op === "protect" || op === "unlock") && allPdf && password) || op === "ocr");
+      (op === "stamp" && allPdf && (watermark.trim() || pageNumbers)) || ((op === "protect" || op === "unlock") && allPdf && password) || op === "ocr" ||
+      ((op === "to_images" || op === "repair") && allPdf) || (op === "metadata" && allPdf && Object.values(meta).some((v) => v.trim())));
 
   return (
     <div className="page">
@@ -196,6 +206,16 @@ export function Documents({ go, preload }: { go: (r: string) => void; preload?: 
             <label>Language <input style={{ maxWidth: 120 }} value={language} onChange={(e) => setLanguage(e.target.value)} />
               <span className="muted small"> Tesseract code, e.g. eng, eng+hin</span></label>
           )}
+          {op === "to_images" && (
+            <>
+              <label>Format <select value={imageFormat} onChange={(e) => setImageFormat(e.target.value)}><option value="png">PNG</option><option value="jpg">JPG</option></select></label>
+              <label>Quality <select value={dpi} onChange={(e) => setDpi(Number(e.target.value))}><option value={96}>Screen (96 dpi)</option><option value={150}>Normal (150 dpi)</option><option value={300}>Print (300 dpi)</option></select></label>
+              <span className="muted small">Several pages come as one .zip.</span>
+            </>
+          )}
+          {op === "metadata" && (["title", "author", "subject", "keywords"] as const).map((k) => (
+            <label key={k}>{k[0].toUpperCase() + k.slice(1)} <input value={meta[k]} placeholder="leave empty to keep" onChange={(e) => setMeta({ ...meta, [k]: e.target.value })} /></label>
+          ))}
           {(op !== "convert" && op !== "images_to_pdf" && op !== "ocr" && !allPdf) && <div className="warning">This tool works on PDFs. Convert the other files first.</div>}
           {op === "merge" && files.length < 2 && <span className="muted small">Add at least two PDFs.</span>}
           <button className="btn-primary" disabled={!ready || busy} onClick={start}>{busy ? "Starting…" : "Start"}</button>

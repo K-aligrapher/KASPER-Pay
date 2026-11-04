@@ -14,6 +14,7 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
     public DbSet<MockOutboxEntry> MockOutbox => Set<MockOutboxEntry>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Schedule> Schedules => Set<Schedule>();
+    public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();
 
     /// <summary>All times are stored as UTC; SQLite loses DateTimeKind, so restore it on read.</summary>
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
@@ -116,6 +117,14 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
             e.Property(x => x.NotionQuery).HasMaxLength(200);
             e.Property(x => x.SlackChannel).HasMaxLength(100);
             e.Property(x => x.GitHubRepo).HasMaxLength(140);
+        });
+
+        b.Entity<ProjectTask>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.ProjectId);
+            e.Property(x => x.Title).HasMaxLength(300);
+            e.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<Schedule>(e =>

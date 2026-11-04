@@ -16,6 +16,7 @@ namespace Kasper.Api.Endpoints;
 
 public sealed record ConnectSlackDto(string Token, string Channels);
 public sealed record ConnectGitHubDto(string Token);
+public sealed record ProjectTaskEditDto(string? Title, bool? Done);
 
 /// <summary>Slack, GitHub, projects, schedules and MCP status (Milestones 5–7).</summary>
 internal static class ConnectEndpoints
@@ -70,6 +71,12 @@ internal static class ConnectEndpoints
         app.MapDelete("/api/projects/{id:guid}", (Guid id, ProjectService projects, CancellationToken ct) => Guard(async () => { await projects.DeleteAsync(id, ct); return Results.NoContent(); }));
         app.MapPost("/api/projects/{id:guid}/briefing", (Guid id, ProjectService projects, CancellationToken ct) => Guard(async () => Results.Ok(await projects.BriefingAsync(id, ct))));
 
+        app.MapGet("/api/projects/{id:guid}/tasks", (Guid id, ProjectTaskService tasks, CancellationToken ct) => Guard(async () => Results.Ok(await tasks.ListAsync(id, ct))));
+        app.MapPost("/api/projects/{id:guid}/tasks", (Guid id, ProjectTaskEditDto dto, ProjectTaskService tasks, CancellationToken ct) => Guard(async () => Results.Ok(await tasks.AddAsync(id, dto.Title, ct))));
+        app.MapPut("/api/projects/{id:guid}/tasks/{taskId:guid}", (Guid id, Guid taskId, ProjectTaskEditDto dto, ProjectTaskService tasks, CancellationToken ct) => Guard(async () => Results.Ok(await tasks.UpdateAsync(id, taskId, dto.Title, dto.Done, ct))));
+        app.MapDelete("/api/projects/{id:guid}/tasks/{taskId:guid}", (Guid id, Guid taskId, ProjectTaskService tasks, CancellationToken ct) => Guard(async () => { await tasks.DeleteAsync(id, taskId, ct); return Results.NoContent(); }));
+        app.MapPost("/api/projects/{id:guid}/tasks/{taskId:guid}/notion", (Guid id, Guid taskId, ProjectTaskService tasks, WorkflowService workflows, CancellationToken ct) => Guard(async () => Results.Ok(await tasks.SendToNotionAsync(id, taskId, workflows, ct))));
+
         // ---- Schedules -------------------------------------------------------------------
         app.MapGet("/api/schedules", async (KasperDbContext db, CancellationToken ct) =>
             (await db.Schedules.OrderBy(s => s.TimeOfDay).ToListAsync(ct)).Select(ToDto));
@@ -107,6 +114,14 @@ internal static class ConnectEndpoints
         {
             Servers = hub.Status,
             Tools = hub.Tools.Select(t => new { t.Descriptor.Id, t.Descriptor.Description, t.Descriptor.RequiresApproval }),
+        });
+
+        // ---- Final Review preview (FR-211): the staged file itself, so PDFs and images render as pages.
+        app.MapGet("/api/artifacts/{id:guid}/preview", async (Guid id, Kasper.Infrastructure.Files.ArtifactStore artifacts, CancellationToken ct) =>
+        {
+            if (await artifacts.FindAsync(id, ct) is not { } a || !File.Exists(a.StagingPath)) return Results.NotFound();
+            if (a.MimeType is not ("application/pdf" or "image/png" or "image/jpeg")) return Results.StatusCode(415);
+            return Results.File(a.StagingPath, a.MimeType, enableRangeProcessing: true);
         });
 
         // ---- Send To / drop: look up an uploaded file so the Documents screen can preload it

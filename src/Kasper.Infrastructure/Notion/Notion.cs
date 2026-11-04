@@ -160,6 +160,85 @@ public sealed class NotionClient(HttpClient http)
         return new NotionPage(page["id"]!.GetValue<string>(), title, page["url"]?.GetValue<string>() ?? "", "page");
     }
 
+    /// <summary>A page from a Notion link/id, or the newest task in the database with that title.</summary>
+    public async Task<JsonObject> ResolvePageAsync(NotionSettings s, string pageRef, CancellationToken ct)
+    {
+        pageRef = pageRef.Trim();
+        var looksLikeLink = pageRef.Contains("notion.so", StringComparison.OrdinalIgnoreCase) || pageRef.Contains("notion.site", StringComparison.OrdinalIgnoreCase)
+            || System.Text.RegularExpressions.Regex.IsMatch(pageRef, "^[0-9a-fA-F-]{32,36}$");
+        if (looksLikeLink && NotionSettingsStore.ParseId(pageRef) is { } id)
+            return await SendAsync(Request(HttpMethod.Get, $"pages/{id}", s.Token), ct);
+        foreach (var filter in new object[] { new { equals = pageRef }, new { contains = pageRef } })
+        {
+            var res = await SendAsync(Request(HttpMethod.Post, $"databases/{s.DatabaseId}/query", s.Token, new
+            {
+                filter = new { property = s.TitleProperty, title = filter },
+                sorts = new[] { new { timestamp = "created_time", direction = "descending" } },
+                page_size = 2,
+            }), ct);
+            if ((res["results"] as JsonArray ?? []).OfType<JsonObject>().FirstOrDefault() is { } hit) return hit;
+        }
+        throw new ToolException("notion_page_not_found", $"No Notion task called “{pageRef}” in {s.DatabaseTitle}. Use the exact title or paste the page link.", ErrorCategory.Validation);
+    }
+
+    public static NotionPage AsPage(JsonObject page) =>
+        new(page["id"]!.GetValue<string>(), TitleOf(page), page["url"]?.GetValue<string>() ?? "", "page");
+
+    /// <summary>The page's status-like property: a status/select named like "status", any status, or a checkbox (e.g. Done).</summary>
+    public static (string Name, string Type, string Current)? StatusProperty(JsonObject page)
+    {
+        var props = (page["properties"] as JsonObject ?? []).Select(p => (Name: p.Key, Type: p.Value?["type"]?.GetValue<string>() ?? "", Node: p.Value)).ToList();
+        var pick = props.FirstOrDefault(p => p.Type is "status" or "select" && p.Name.Contains("status", StringComparison.OrdinalIgnoreCase));
+        if (pick.Name is null) pick = props.FirstOrDefault(p => p.Type == "status");
+        if (pick.Name is null) pick = props.FirstOrDefault(p => p.Type == "checkbox");
+        if (pick.Name is null) return null;
+        var current = pick.Type == "checkbox"
+            ? (pick.Node?["checkbox"]?.GetValue<bool>() == true ? "Done" : "Not done")
+            : pick.Node?[pick.Type]?["name"]?.GetValue<string>() ?? "(empty)";
+        return (pick.Name, pick.Type, current);
+    }
+
+    public async Task UpdatePageAsync(NotionSettings s, JsonObject page, string? status, string? newTitle, CancellationToken ct)
+    {
+        var props = new JsonObject();
+        if (!string.IsNullOrWhiteSpace(newTitle))
+            props[s.TitleProperty] = new JsonObject { ["title"] = new JsonArray(new JsonObject { ["text"] = new JsonObject { ["content"] = newTitle } }) };
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            var sp = StatusProperty(page) ?? throw new ToolException("notion_no_status", "This task has no Status (or checkbox) column to change.", ErrorCategory.Validation);
+            props[sp.Name] = sp.Type == "checkbox"
+                ? new JsonObject { ["checkbox"] = status.Trim().ToLowerInvariant() is "done" or "complete" or "completed" or "yes" or "true" or "checked" }
+                : new JsonObject { [sp.Type] = new JsonObject { ["name"] = status.Trim() } };
+        }
+        if (props.Count == 0) throw new ToolException("nothing_to_update", "Give a new status or title.", ErrorCategory.Validation);
+        await SendAsync(Request(HttpMethod.Patch, $"pages/{page["id"]!.GetValue<string>()}", s.Token, new JsonObject { ["properties"] = props }), ct);
+    }
+
+    private static JsonArray Paragraphs(string text)
+    {
+        var blocks = new JsonArray();
+        foreach (var para in text.Replace("\r\n", "\n").Split("\n\n", StringSplitOptions.RemoveEmptyEntries).Take(90))
+            blocks.Add(new JsonObject
+            {
+                ["object"] = "block", ["type"] = "paragraph",
+                ["paragraph"] = new JsonObject { ["rich_text"] = new JsonArray(new JsonObject { ["text"] = new JsonObject { ["content"] = para.Length > 1900 ? para[..1900] : para } }) },
+            });
+        return blocks;
+    }
+
+    public async Task AppendAsync(string token, string pageId, string text, CancellationToken ct) =>
+        await SendAsync(Request(HttpMethod.Patch, $"blocks/{pageId}/children", token, new JsonObject { ["children"] = Paragraphs(text) }), ct);
+
+    /// <summary>Plain text of the page's last blocks (used to avoid appending twice on retry).</summary>
+    public async Task<string> LastBlocksTextAsync(string token, string pageId, CancellationToken ct)
+    {
+        var res = await SendAsync(Request(HttpMethod.Get, $"blocks/{pageId}/children?page_size=100", token), ct);
+        return string.Join("\n\n", (res["results"] as JsonArray ?? []).OfType<JsonObject>()
+            .Select(b => b[b["type"]?.GetValue<string>() ?? ""]?["rich_text"] as JsonArray)
+            .Where(rt => rt is not null)
+            .Select(rt => string.Concat(rt!.Select(t => t?["plain_text"]?.GetValue<string>() ?? t?["text"]?["content"]?.GetValue<string>()))));
+    }
+
     private static string TitleOf(JsonObject r)
     {
         if (r["title"] is JsonArray dbTitle) return string.Concat(dbTitle.Select(t => t?["plain_text"]?.GetValue<string>()));

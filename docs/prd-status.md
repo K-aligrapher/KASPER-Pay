@@ -37,23 +37,23 @@
 | FR-040…049 lifecycle & Final Review | ✅ | approve/edit/reject, batched reviews, expiry |
 | FR-04A per-tool approval policy | ❌ | P2; current policy = ask before save/send/update/delete (owner decision) |
 | FR-200/201 convert + routing | ✅ | |
-| FR-202 PDF toolkit | 🟡 | all listed except **PDF → images** and image watermarks |
+| FR-202 PDF toolkit | ✅ | incl. PDF → images (PNG/JPG, zipped); image watermarks not built |
 | FR-203 OCR | ✅ | needs Ghostscript + Tesseract |
-| FR-204 metadata / flatten / repair | ❌ | P1 |
+| FR-204 metadata / flatten / repair | 🟡 | metadata ✅, repair (QPDF) ✅; flatten forms ❌ |
 | FR-205 compare / redact / sign | ❌ | P2 |
 | FR-206 staging, never overwrite | ✅ | default save folder is Documents\KASPER (not "next to source": sources are uploads) |
 | FR-207 conversion trace | 🟡 | hashes, duration, attempts recorded; engine version not recorded |
 | FR-208 lossy warning | ✅ | |
 | FR-209 sandboxed engines | 🟡 | child processes + timeouts + kill tree; no memory cap or network isolation |
 | FR-210 engine detection | ✅ | hints shown; no one-click install |
-| FR-211 preview pane | 🟡 | text preview in review; PDF page rendering ❌ |
+| FR-211 preview pane | ✅ | text preview, plus real PDF pages / images in Final Review |
 | FR-212 presets | ❌ | P1 |
 | FR-300/302/303/306 projects, briefing, notes, folder allowlist | ✅ | notes are local only (Notion sync ❌) |
 | FR-301 project dashboard | 🟡 | briefing-based; no live PR/task widgets |
-| FR-304 project task list | ❌ | tasks go to Notion via chat; no local task list |
+| FR-304 project task list | ✅ | local list per project (tick, delete, “→ Notion” with approval); chat can add tasks; open tasks feed briefings |
 | FR-305 scheduled briefings | 🟡 | generic schedules work for any request; not a project-specific option |
-| FR-400 Notion | 🟡 | search + create ✅; update page / append ❌ |
-| FR-401 Slack | 🟡 | read + post ✅; file upload and thread replies ❌ |
+| FR-400 Notion | ✅ | search, create, update status/title, append text (all writes reviewed) |
+| FR-401 Slack | ✅ | read channels/threads, post, reply in threads, share files (all writes reviewed) |
 | FR-402 GitHub | 🟡 | repos, PRs, issues, commits ✅; changed files per PR ❌ |
 | FR-403/404 sources, no duplicates | ✅ | |
 | FR-405 Slack thread → Notion tasks flow | 🟡 | possible through the planner (read → generate → create, each task reviewed); no dedicated guided flow |
@@ -68,7 +68,7 @@
 | Reliability NFR-020…026 | ✅ | |
 | Observability NFR-030…033 | 🟡 | JSON-lines log + audit trail; correlation ID not on every log line |
 | Performance NFR-040…045 | ✅ | cold start ≈ 2 s |
-| Maintainability NFR-050…054 | ✅ | 122 tests; docs in /docs |
+| Maintainability NFR-050…054 | ✅ | 137 tests; docs in /docs |
 
 ## Acceptance criteria (§19)
 
@@ -76,7 +76,7 @@
 |---|---|
 | 1 installs and runs (tray, hotkey, notifications) | ✅ |
 | 2 Ollama adapter, works offline minus AI | ✅ |
-| 3 conversions + PDF toolkit | ✅ (PDF → images missing) |
+| 3 conversions + PDF toolkit | ✅ |
 | 4 staged, committed only after approval, sources untouched | ✅ |
 | 5 workflows inspectable | ✅ |
 | 6 only registered, validated tools | ✅ |
@@ -90,8 +90,9 @@
 | 14 bunny logo + theme everywhere | ✅ |
 
 ## Remaining backlog (suggested order)
-1. PDF → images, PDF repair (QPDF), metadata (FR-202/204)
-2. Notion update/append, Slack thread replies + file upload (FR-400/401)
-3. Local project task list synced with Notion (FR-304)
-4. PDF page preview (FR-211)  (pdf2docx for PDF → Word and Word → PowerPoint: done)
-5. Start at login, tab completion, per-task model override, presets
+Done 2026-11-05: PDF → images, repair, metadata · Notion update/append · Slack threads + file sharing ·
+project task list · PDF/image preview in Final Review · pdf2docx (PDF → Word) · Word → PowerPoint.
+
+1. Start at login, tab completion, per-task model override, presets
+2. PDF form flattening, GitHub changed files per PR
+3. P2: semantic search, compare/redact/sign, more connectors

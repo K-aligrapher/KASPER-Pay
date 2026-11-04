@@ -65,7 +65,8 @@ public sealed record ApprovalDto(
     IReadOnlyList<PreviewField> Fields,
     string? Content,
     IReadOnlyList<string> Warnings,
-    IReadOnlyList<EditableFieldDto> Editable);
+    IReadOnlyList<EditableFieldDto> Editable,
+    Guid? PreviewArtifactId = null);
 
 /// <summary>Decision is "approve", "reject" or "edit". Edits are only allowed for editable fields.</summary>
 public sealed record DecisionDto(string Decision, IReadOnlyDictionary<string, string>? Edits = null, string? Note = null);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api2, ApiError, type Project } from "../api";
+import { api2, ApiError, type Project, type ProjectTask } from "../api";
 import { Bunny } from "../Bunny";
 import { timeAgo } from "../components";
 
@@ -64,6 +64,8 @@ export function Projects({ selected, go }: { selected: string | null; go: (r: st
             <h3>Briefing {current.lastBriefingAtUtc && <span className="muted small">· {timeAgo(current.lastBriefingAtUtc)}</span>}</h3>
             {busy && <p className="muted"><Bunny size={24} thinking /> Gathering files, GitHub, Slack and Notion, then summarising… (up to a minute)</p>}
             {current.lastBriefing ? <pre className="content-preview briefing">{current.lastBriefing}</pre> : <p className="muted">Click Briefing for a summary of what changed, blockers and next actions.</p>}
+            <h3>Tasks</h3>
+            <TaskList project={current} go={go} />
             <h3>Notes</h3>
             <NotesEditor project={current} onSave={(notes) => run(() => api2.saveProject({ ...current, notes }))} />
           </div>
@@ -71,6 +73,47 @@ export function Projects({ selected, go }: { selected: string | null; go: (r: st
           <div className="empty"><Bunny size={96} /><p>Create a project to link its folder, GitHub repo, Slack channel and Notion pages.</p></div>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Local task list (FR-304). Ticking boxes here applies directly; sending to Notion asks first. */
+function TaskList({ project, go }: { project: Project; go: (r: string) => void }) {
+  const [tasks, setTasks] = useState<ProjectTask[]>([]);
+  const [title, setTitle] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => { api2.tasks(project.id).then(setTasks).catch(() => {}); }, [project.id]);
+  useEffect(load, [load]);
+  const act = async (fn: () => Promise<unknown>) => {
+    setError(null);
+    try { await fn(); load(); } catch (e) { setError(e instanceof ApiError ? e.message : "Something went wrong."); }
+  };
+  const open = tasks.filter((t) => !t.done).length;
+  return (
+    <div className="task-list">
+      {error && <div className="error">{error}</div>}
+      <form className="task-add" onSubmit={(e) => { e.preventDefault(); if (title.trim()) act(async () => { await api2.addTask(project.id, title); setTitle(""); }); }}>
+        <input value={title} placeholder="Add a task…" maxLength={300} onChange={(e) => setTitle(e.target.value)} />
+        <button className="btn-primary btn-sm" disabled={!title.trim()}>Add</button>
+      </form>
+      {tasks.length === 0 && <p className="muted small">No tasks yet. You can also ask KASPER: “add a task to {project.name}: …”.</p>}
+      <ul>
+        {tasks.map((t) => (
+          <li key={t.id} className={t.done ? "done" : ""}>
+            <label>
+              <input type="checkbox" checked={t.done} onChange={() => act(() => api2.updateTask(project.id, t.id, { done: !t.done }))} />
+              <span>{t.title}</span>
+            </label>
+            <span className="task-actions">
+              {t.notionWorkflowId
+                ? <button className="btn-ghost btn-sm" onClick={() => go(`history/${t.notionWorkflowId}`)}>In Notion ↗</button>
+                : <button className="btn-ghost btn-sm" title="Create it in your Notion task database (asks you first)" onClick={() => act(() => api2.taskToNotion(project.id, t.id))}>→ Notion</button>}
+              <button className="btn-ghost btn-sm" title="Delete" onClick={() => act(() => api2.deleteTask(project.id, t.id))}>✕</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {tasks.length > 0 && <p className="muted small">{open} open · {tasks.length - open} done</p>}
     </div>
   );
 }

@@ -15,7 +15,8 @@ namespace Kasper.Api.Endpoints;
 
 public sealed record DocumentJobDto(string Operation, IReadOnlyList<Guid> Uploads, string? To = null, string? Pages = null,
     int? Degrees = null, string? Quality = null, string? FileName = null, string? Folder = null,
-    string? Watermark = null, bool PageNumbers = false, string? Password = null, string? Language = null);
+    string? Watermark = null, bool PageNumbers = false, string? Password = null, string? Language = null,
+    string? Format = null, int? Dpi = null, string? Title = null, string? Author = null, string? Subject = null, string? Keywords = null);
 
 public sealed record UploadDto(Guid Upload, string FileName, long SizeBytes, IReadOnlyList<string> Targets);
 
@@ -151,8 +152,37 @@ internal static class DocumentEndpoints
                         _ => $"Compress {Plural(imports.Count)}",
                     };
                     break;
+                case "to_images" or "repair" or "metadata":
+                    foreach (var k in imports)
+                    {
+                        var key = Next();
+                        var input = new JsonObject { ["artifact"] = $"${k}.artifact" };
+                        if (job.Operation == "to_images")
+                        {
+                            input["format"] = job.Format ?? "png";
+                            input["dpi"] = job.Dpi ?? 150;
+                        }
+                        if (job.Operation == "metadata")
+                        {
+                            if (!string.IsNullOrWhiteSpace(job.Title)) input["title"] = job.Title;
+                            if (!string.IsNullOrWhiteSpace(job.Author)) input["author"] = job.Author;
+                            if (!string.IsNullOrWhiteSpace(job.Subject)) input["subject"] = job.Subject;
+                            if (!string.IsNullOrWhiteSpace(job.Keywords)) input["keywords"] = job.Keywords;
+                            if (input.Count == 1) return Results.BadRequest(new ErrorDto("nothing_to_set", "Fill in at least one field."));
+                        }
+                        var tool = job.Operation switch { "to_images" => "pdf.to_images", "repair" => "pdf.repair", _ => "pdf.metadata" };
+                        steps.Add(new(key, tool, job.Operation switch { "to_images" => "Turn pages into images", "repair" => "Repair the PDF", _ => "Set title / author" }, input));
+                        Commit(key);
+                    }
+                    summary = job.Operation switch
+                    {
+                        "to_images" => $"Turn {Plural(imports.Count)} into images",
+                        "repair" => $"Repair {Plural(imports.Count)}",
+                        _ => $"Edit details of {Plural(imports.Count)}",
+                    };
+                    break;
                 default:
-                    return Results.BadRequest(new ErrorDto("invalid_job", "Operation must be convert, merge, images_to_pdf, extract, rotate, compress, stamp, protect, unlock or ocr."));
+                    return Results.BadRequest(new ErrorDto("invalid_job", "Operation must be convert, merge, images_to_pdf, extract, rotate, compress, stamp, protect, unlock, ocr, to_images, repair or metadata."));
             }
 
             try

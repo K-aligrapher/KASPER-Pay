@@ -121,6 +121,15 @@ public sealed class ProjectService(
             sources.Add("Notion");
         });
 
+        var tasks = await db.ProjectTasks.Where(t => t.ProjectId == p.Id).ToListAsync(ct);
+        if (tasks.Count > 0)
+        {
+            context.AppendLine("## Project tasks (KASPER list)");
+            foreach (var t in tasks.Where(t => !t.Done)) context.AppendLine($"- [ ] {t.Title}");
+            foreach (var t in tasks.Where(t => t.Done && t.DoneAtUtc > clock.UtcNow.AddDays(-7))) context.AppendLine($"- [x] {t.Title} (done {t.DoneAtUtc:d})");
+            sources.Add("task list");
+        }
+
         if (!string.IsNullOrWhiteSpace(p.Notes)) context.AppendLine("## My notes").AppendLine(p.Notes);
 
         var reply = await model.ChatAsync(

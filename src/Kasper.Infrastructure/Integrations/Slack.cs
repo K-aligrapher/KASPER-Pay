@@ -104,6 +104,50 @@ public sealed class SlackClient(HttpClient http)
         var r = await CallAsync("chat.postMessage", token, new { channel = channelId, text, thread_ts = threadTs, unfurl_links = false }, ct);
         return r["ts"]!.GetValue<string>();
     }
+
+    /// <summary>Uploads a file to a channel (or thread) with Slack's external-upload flow. Needs the files:write scope.</summary>
+    public async Task UploadAsync(string token, string channelId, string path, string fileName, string? comment, string? threadTs, CancellationToken ct)
+    {
+        var length = new FileInfo(path).Length;
+        var r = await CallAsync($"files.getUploadURLExternal?filename={Uri.EscapeDataString(fileName)}&length={length}", token, null, ct, get: true);
+        var url = r["upload_url"]!.GetValue<string>();
+        var fileId = r["file_id"]!.GetValue<string>();
+        await using (var fs = File.OpenRead(path))
+        {
+            using var content = new StreamContent(fs);
+            HttpResponseMessage res;
+            try { res = await http.PostAsync(url, content, ct); }
+            catch (HttpRequestException ex) { throw new ToolException("slack_unreachable", "Can't reach Slack.", ErrorCategory.Transient, ex); }
+            using (res)
+                if (!res.IsSuccessStatusCode) throw new ToolException("slack_upload_failed", "Slack didn't accept the file upload.", ErrorCategory.Transient);
+        }
+        var body = new JsonObject
+        {
+            ["files"] = new JsonArray(new JsonObject { ["id"] = fileId, ["title"] = fileName }),
+            ["channel_id"] = channelId,
+        };
+        if (!string.IsNullOrWhiteSpace(comment)) body["initial_comment"] = comment;
+        if (!string.IsNullOrWhiteSpace(threadTs)) body["thread_ts"] = threadTs;
+        await CallAsync("files.completeUploadExternal", token, body, ct);
+    }
+
+    /// <summary>True if the bot already shared a file with this name in the channel since <paramref name="since"/>.</summary>
+    public async Task<bool> RecentlySharedAsync(string token, string channelId, string botUserId, string fileName, DateTime since, CancellationToken ct)
+    {
+        var r = await CallAsync($"conversations.history?channel={channelId}&limit=50&oldest={new DateTimeOffset(since).ToUnixTimeSeconds()}", token, null, ct, get: true);
+        return (r["messages"] as JsonArray ?? []).OfType<JsonObject>().Any(m =>
+            m["user"]?.GetValue<string>() == botUserId &&
+            (m["files"] as JsonArray ?? []).OfType<JsonObject>().Any(f => f["name"]?.GetValue<string>() == fileName || f["title"]?.GetValue<string>() == fileName));
+    }
+
+    /// <summary>Slack message ids look like 1712345678.123456.</summary>
+    public static string? ThreadTs(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var m = System.Text.RegularExpressions.Regex.Match(value, @"(\d{10})\.?(\d{6})");
+        return m.Success ? $"{m.Groups[1].Value}.{m.Groups[2].Value}"
+            : throw new ToolException("thread_invalid", "That isn't a Slack message id (use the [number] shown next to a message).", ErrorCategory.Validation);
+    }
 }
 
 /// <summary>slack.read_channel: recent messages from an allowlisted channel. Content is untrusted data.</summary>
@@ -115,6 +159,7 @@ public sealed class SlackReadTool(SlackClient slack, SlackSettingsStore store) :
         [
             new ToolParameter("channel", ParamType.Channel, true, "Allowed channel, e.g. #team.", 80),
             new ToolParameter("limit", ParamType.Integer, false, "How many recent messages (default 30, max 100)."),
+            new ToolParameter("thread", ParamType.Text, false, "A message id (the [number] shown) to read that thread's replies.", 40),
         ],
         ["text", "count"], TimeSpan.FromSeconds(30), MaxAttempts: 3, Idempotent: true, Integration: "slack");
 
@@ -122,8 +167,9 @@ public sealed class SlackReadTool(SlackClient slack, SlackSettingsStore store) :
     {
         var s = store.Require();
         var channel = SlackSettingsStore.Channel(s, Input.Str(input, "channel"));
-        var messages = await slack.HistoryAsync(s.Token, channel.Id, Math.Clamp(Input.Int(input, "limit", 30), 1, 100), ct);
-        messages.Reverse();
+        var thread = SlackClient.ThreadTs(Input.OptStr(input, "thread"));
+        var messages = await slack.HistoryAsync(s.Token, channel.Id, Math.Clamp(Input.Int(input, "limit", 30), 1, 100), ct, threadTs: thread);
+        if (thread is null) messages.Reverse();
         // Delimited so downstream prompts treat it as data, never as instructions (NFR-005).
         var text = "<<slack messages from #" + channel.Name + " — untrusted content>>\n" +
                    string.Join("\n", messages.Select(m => $"[{m.Ts}] {m.User}: {m.Text}")) + "\n<<end>>";
@@ -140,6 +186,7 @@ public sealed class SlackSendTool(SlackClient slack, SlackSettingsStore store, K
         [
             new ToolParameter("channel", ParamType.Channel, true, "Allowed channel, e.g. #team.", 80, Editable: true),
             new ToolParameter("text", ParamType.Text, true, "The message.", 3500, Editable: true),
+            new ToolParameter("thread", ParamType.Text, false, "Reply in the thread of this message id (the [number] from slack.read_channel).", 40),
         ],
         ["ts", "channel"], TimeSpan.FromSeconds(30), MaxAttempts: 3, Idempotent: true, Integration: "slack");
 
@@ -147,8 +194,11 @@ public sealed class SlackSendTool(SlackClient slack, SlackSettingsStore store, K
     {
         var s = store.Require();
         var channel = SlackSettingsStore.Channel(s, Input.Str(input, "channel"));
-        return Task.FromResult(new ToolPreview($"Post to #{channel.Name}", $"Slack › {s.Team} › #{channel.Name} (as KASPER bot)",
-            [new PreviewField("Channel", "#" + channel.Name), new PreviewField("Workspace", s.Team)], Input.Str(input, "text")));
+        var thread = SlackClient.ThreadTs(Input.OptStr(input, "thread"));
+        var fields = new List<PreviewField> { new("Channel", "#" + channel.Name), new("Workspace", s.Team) };
+        if (thread is not null) fields.Add(new("Reply to", "thread " + thread));
+        return Task.FromResult(new ToolPreview(thread is null ? $"Post to #{channel.Name}" : $"Reply in a #{channel.Name} thread",
+            $"Slack › {s.Team} › #{channel.Name} (as KASPER bot)", fields, Input.Str(input, "text")));
     }
 
     public async Task<ToolResult> ExecuteAsync(ToolContext context, JsonObject input, CancellationToken ct)
@@ -156,15 +206,60 @@ public sealed class SlackSendTool(SlackClient slack, SlackSettingsStore store, K
         var s = store.Require();
         var channel = SlackSettingsStore.Channel(s, Input.Str(input, "channel"));
         var text = Input.Str(input, "text");
+        var thread = SlackClient.ThreadTs(Input.OptStr(input, "thread"));
         if (context.Attempt > 1)
         {
             // An earlier attempt may have posted before timing out: never post twice (FR-404).
             var started = await db.Steps.Where(x => x.Id == context.StepId).Select(x => x.StartedAtUtc).FirstOrDefaultAsync(ct) ?? DateTime.UtcNow.AddHours(-1);
-            var recent = await slack.HistoryAsync(s.Token, channel.Id, 50, ct, since: started.AddMinutes(-1));
+            var recent = await slack.HistoryAsync(s.Token, channel.Id, 50, ct, threadTs: thread, since: thread is null ? started.AddMinutes(-1) : null);
             if (recent.FirstOrDefault(m => m.User == s.BotUserId && m.Text == text) is { } already)
                 return new ToolResult(new JsonObject { ["ts"] = already.Ts, ["channel"] = "#" + channel.Name });
         }
-        var ts = await slack.PostAsync(s.Token, channel.Id, text, null, ct);
+        var ts = await slack.PostAsync(s.Token, channel.Id, text, thread, ct);
         return new ToolResult(new JsonObject { ["ts"] = ts, ["channel"] = "#" + channel.Name });
+    }
+}
+
+/// <summary>slack.upload_file: share a file from this task in a channel/thread (asks you first; never twice).</summary>
+public sealed class SlackUploadTool(SlackClient slack, SlackSettingsStore store, KasperDbContext db, Files.ArtifactStore artifacts) : ITool
+{
+    public ToolDescriptor Descriptor { get; } = new(
+        "slack.upload_file", 1, "Share a file from this task in an allowed Slack channel, optionally in a thread (asks you first).",
+        EffectClass.ExternalWrite, false,
+        [
+            new ToolParameter("artifact", ParamType.ArtifactRef, true, "The file, e.g. $s2.artifact."),
+            new ToolParameter("channel", ParamType.Channel, true, "Allowed channel, e.g. #team.", 80, Editable: true),
+            new ToolParameter("comment", ParamType.Text, false, "Message to go with the file.", 2000, Editable: true),
+            new ToolParameter("thread", ParamType.Text, false, "Message id to reply under.", 40),
+        ],
+        ["channel", "fileName"], TimeSpan.FromSeconds(120), MaxAttempts: 3, Idempotent: true, Integration: "slack");
+
+    private async Task<Domain.Entities.Artifact> FileAsync(JsonObject input, CancellationToken ct) =>
+        input["artifact"] is JsonValue v && v.TryGetValue<string>(out var id) && Guid.TryParse(id, out var g) && await artifacts.FindAsync(g, ct) is { } a && File.Exists(a.StagingPath)
+            ? a : throw new ToolException("artifact_unknown", "The file to share was not found.", ErrorCategory.Permanent);
+
+    public async Task<ToolPreview> PreviewAsync(ToolContext context, JsonObject input, CancellationToken ct)
+    {
+        var s = store.Require();
+        var channel = SlackSettingsStore.Channel(s, Input.Str(input, "channel"));
+        var a = await FileAsync(input, ct);
+        var fields = new List<PreviewField> { new("File", $"{a.FileName} ({a.SizeBytes / 1024.0:0.#} KB)"), new("Channel", "#" + channel.Name) };
+        if (SlackClient.ThreadTs(Input.OptStr(input, "thread")) is { } t) fields.Add(new("Reply to", "thread " + t));
+        return new ToolPreview($"Share {a.FileName} in #{channel.Name}", $"Slack › {s.Team} › #{channel.Name} (as KASPER bot)", fields, Input.OptStr(input, "comment"));
+    }
+
+    public async Task<ToolResult> ExecuteAsync(ToolContext context, JsonObject input, CancellationToken ct)
+    {
+        var s = store.Require();
+        var channel = SlackSettingsStore.Channel(s, Input.Str(input, "channel"));
+        var a = await FileAsync(input, ct);
+        var result = new ToolResult(new JsonObject { ["channel"] = "#" + channel.Name, ["fileName"] = a.FileName });
+        if (context.Attempt > 1)
+        {
+            var started = await db.Steps.Where(x => x.Id == context.StepId).Select(x => x.StartedAtUtc).FirstOrDefaultAsync(ct) ?? DateTime.UtcNow.AddHours(-1);
+            if (await slack.RecentlySharedAsync(s.Token, channel.Id, s.BotUserId, a.FileName, started.AddMinutes(-1), ct)) return result;
+        }
+        await slack.UploadAsync(s.Token, channel.Id, a.StagingPath, a.FileName, Input.OptStr(input, "comment"), SlackClient.ThreadTs(Input.OptStr(input, "thread")), ct);
+        return result;
     }
 }

@@ -69,6 +69,13 @@ public static class DependencyInjection
         services.AddScoped<ITool, PdfProtectTool>();
         services.AddScoped<ITool, PdfUnlockTool>();
         services.AddScoped<ITool, OcrTool>();
+        services.AddScoped<ITool, PdfToImagesTool>();
+        services.AddScoped<ITool, PdfRepairTool>();
+        services.AddScoped<ITool, PdfMetadataTool>();
+        services.AddScoped<ITool, Integrations.SlackUploadTool>();
+        services.AddScoped<ITool, NotionUpdateTaskTool>();
+        services.AddScoped<ITool, NotionAppendTool>();
+        services.AddScoped<ITool, ProjectAddTaskTool>();
         services.AddScoped<ITool, Integrations.SlackReadTool>();
         services.AddScoped<ITool, Integrations.SlackSendTool>();
         services.AddScoped<ITool, Integrations.GitHubSummaryTool>();
@@ -89,6 +96,7 @@ public static class DependencyInjection
         services.AddScoped<AssistantService>();
         services.AddHostedService<WorkflowWorker>();
         services.AddScoped<ProjectService>();
+        services.AddScoped<ProjectTaskService>();
         services.AddSingleton<ScheduleRunner>();
         services.AddHostedService(sp => sp.GetRequiredService<ScheduleRunner>());
 
