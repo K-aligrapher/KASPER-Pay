@@ -250,3 +250,12 @@ public sealed class ProjectTaskAndPdfToolTests : IAsyncLifetime
         Assert.Contains(d.Artifacts, a => a.FileName == "broken-repaired.pdf");
     }
 }
+
+public class OpenFileToolTests
+{
+    [Theory]
+    [InlineData("EWaste_Seminar____20(1).docx", "ewaste seminar 20 (1).docx")]
+    [InlineData("Q3 Report.PDF", "q3-report.pdf")]
+    public void File_names_match_loosely(string onDisk, string typed) =>
+        Assert.Equal(Kasper.Infrastructure.Tools.OpenFileTool.Loose(onDisk), Kasper.Infrastructure.Tools.OpenFileTool.Loose(typed));
+}

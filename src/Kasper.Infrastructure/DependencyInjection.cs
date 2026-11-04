@@ -59,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<ITool, WriteTextFileTool>();
         services.AddScoped<ITool, CommitFileTool>();
         services.AddScoped<ITool, ImportFileTool>();
+        services.AddScoped<ITool, OpenFileTool>();
         services.AddScoped<ITool, ConvertTool>();
         services.AddScoped<ITool, PdfMergeTool>();
         services.AddScoped<ITool, PdfExtractTool>();
