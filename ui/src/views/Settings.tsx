@@ -60,7 +60,7 @@ export function Settings({ ready }: { ready: Ready | null }) {
             <li key={c.name}><span className={c.ok ? "dot dot--ok" : "dot dot--bad"} /> {c.name} <span className="muted small">— {c.detail}</span></li>
           ))}
         </ul>
-        <p className="muted small">Change the model in <code>%LOCALAPPDATA%\KASPER\settings.json</code> (see README).</p>
+        <ModelPicker />
       </section>
     </div>
   );
@@ -120,5 +120,29 @@ function McpServers() {
         {data?.tools.map((t) => <li key={t.id} className="small"><code>{t.id}</code> {t.requiresApproval && <span className="tag-gold">needs approval</span>}</li>)}
       </ul>
     </section>
+  );
+}
+
+/** AI model picker: any model installed in Ollama. Applies immediately. */
+function ModelPicker() {
+  const [state, setState] = useState<{ current: string; installed: string[] } | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => { api2.model().then(setState).catch(() => {}); }, []);
+  if (!state) return null;
+  return (
+    <div className="model-picker">
+      <label>AI model{" "}
+        <select value={state.current} onChange={async (e) => {
+          const model = e.target.value;
+          setMsg(null);
+          try { await api2.setModel(model); setState({ ...state, current: model }); setMsg(`Now using ${model}. The first reply may take a moment while it loads.`); }
+          catch (err) { setMsg(err instanceof ApiError ? err.message : "Could not change the model."); }
+        }}>
+          {!state.installed.includes(state.current) && <option value={state.current}>{state.current} (not installed)</option>}
+          {state.installed.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </label>
+      {msg && <p className="muted small">{msg}</p>}
+    </div>
   );
 }
