@@ -22,7 +22,9 @@ public sealed class OllamaChatModel(HttpClient http, IOptionsMonitor<OllamaOptio
             Stream: false,
             opts.KeepAlive,
             chatOptions?.JsonMode == true ? "json" : null,
-            new OllamaRequestOptions(opts.ContextLength, chatOptions?.Temperature));
+            new OllamaRequestOptions(opts.ContextLength, chatOptions?.Temperature),
+            // Hybrid models (qwen3…) "think" first; for JSON plans that only costs time.
+            Think: chatOptions?.JsonMode == true && (model ?? opts.Model).StartsWith("qwen3", StringComparison.OrdinalIgnoreCase) ? false : null);
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(opts.TimeoutSeconds));
@@ -80,7 +82,8 @@ public sealed class OllamaChatModel(HttpClient http, IOptionsMonitor<OllamaOptio
         [property: JsonPropertyName("stream")] bool Stream,
         [property: JsonPropertyName("keep_alive")] string KeepAlive,
         [property: JsonPropertyName("format"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Format,
-        [property: JsonPropertyName("options")] OllamaRequestOptions Options);
+        [property: JsonPropertyName("options")] OllamaRequestOptions Options,
+        [property: JsonPropertyName("think"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Think = null);
 
     private sealed record OllamaRequestOptions(
         [property: JsonPropertyName("num_ctx")] int NumCtx,

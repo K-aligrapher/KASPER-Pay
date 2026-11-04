@@ -28,7 +28,7 @@ Tasks survive restarts. Temporary failures are retried a few times, and every st
 
 ## Install (for daily use)
 
-Needs .NET 10 SDK, Node.js and [Ollama](https://ollama.com) with a model (default `qwen2.5-coder:7b`).
+Needs .NET 10 SDK, Node.js and [Ollama](https://ollama.com) with a model (default `qwen3:8b`).
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install.ps1
@@ -57,7 +57,7 @@ kasper --help
 Optional `%LOCALAPPDATA%\KASPER\settings.json`:
 
 ```json
-{ "Ollama": { "Model": "qwen2.5-coder:7b", "BaseUrl": "http://127.0.0.1:11434", "TimeoutSeconds": 300, "KeepAlive": "30m" } }
+{ "Ollama": { "Model": "qwen3:8b", "BaseUrl": "http://127.0.0.1:11434", "TimeoutSeconds": 300, "KeepAlive": "30m" } }
 ```
 
 Environment variables work too (`KASPER__Ollama__Model=...`, see [.env.example](.env.example)). Data, logs and the database live in `%LOCALAPPDATA%\KASPER`.

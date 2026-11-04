@@ -6,8 +6,8 @@ public sealed class OllamaOptions
 
     public string BaseUrl { get; set; } = "http://127.0.0.1:11434";
 
-    /// <summary>Installed on the dev laptop. Switch to a general instruct model later (PRD §16).</summary>
-    public string Model { get; set; } = "qwen2.5-coder:7b";
+    /// <summary>Default model: fits fully on an 8 GB GPU and plans reliably. Change it in Settings.</summary>
+    public string Model { get; set; } = "qwen3:8b";
 
     /// <summary>Generous because the first request after idle includes loading the model into VRAM.</summary>
     public int TimeoutSeconds { get; set; } = 300;
