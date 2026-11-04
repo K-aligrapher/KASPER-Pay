@@ -16,6 +16,12 @@ public enum ParamType
     Integer,
     /// <summary>A JSON array of artifact references, e.g. ["$s1.artifact", "$s2.artifact"].</summary>
     ArtifactList,
+    /// <summary>An allowlisted Slack channel, e.g. "#team".</summary>
+    Channel,
+    /// <summary>An allowlisted GitHub repository, e.g. "owner/name".</summary>
+    Repo,
+    /// <summary>A one-time in-memory secret reference ("secret:…"); the value is never stored.</summary>
+    Secret,
 }
 
 public sealed record ToolParameter(

@@ -152,6 +152,12 @@ internal sealed class KasperClient : IDisposable
     public async Task<IReadOnlyList<EngineDto>> EnginesAsync(CancellationToken ct) =>
         (await SendAsync<EnginesDto>(HttpMethod.Get, "/api/documents/capabilities", null, ct)).Engines;
 
+    public sealed record ProjectDto(Guid Id, string Name, string Description, string Status, string? FolderPath, string? SlackChannel, string? GitHubRepo, string? LastBriefing);
+
+    public Task<List<ProjectDto>> ProjectsAsync(CancellationToken ct) => SendAsync<List<ProjectDto>>(HttpMethod.Get, "/api/projects", null, ct);
+
+    public Task<ProjectDto> BriefingAsync(Guid id, CancellationToken ct) => SendAsync<ProjectDto>(HttpMethod.Post, $"/api/projects/{id}/briefing", null, ct);
+
     public Task<WorkflowSummaryDto> DocumentJobAsync(object job, CancellationToken ct) =>
         SendAsync<WorkflowSummaryDto>(HttpMethod.Post, "/api/documents/jobs", job, ct);
 

@@ -29,9 +29,9 @@ public sealed class OllamaPlanner(
     {
         await scope.EnsureDefaultAsync(clock.UtcNow, ct);
         var folders = await scope.ListAsync(ct);
-        var folderRefs = folders.Select(FileScope.RefFor).ToHashSet();
+        var folderRefs = await scope.AllowedRefsAsync(ct);
 
-        var messages = new List<ChatMessageDto> { new("system", BuildPrompt(folders)) };
+        var messages = new List<ChatMessageDto> { new("system", BuildPrompt(folders, folderRefs)) };
         messages.AddRange(conversation.TakeLast(12));
 
         for (var attempt = 1; attempt <= 2; attempt++)
@@ -108,7 +108,7 @@ public sealed class OllamaPlanner(
         return start > 0 && end > start ? s[(start + 1)..end] : s;
     }
 
-    private string BuildPrompt(IReadOnlyList<Domain.Entities.AllowedFolder> folders)
+    private string BuildPrompt(IReadOnlyList<Domain.Entities.AllowedFolder> folders, ISet<string> refs)
     {
         var sb = new StringBuilder();
         sb.AppendLine(Prompts.System);
@@ -131,6 +131,11 @@ public sealed class OllamaPlanner(
         sb.AppendLine("Allowed folders:");
         foreach (var f in folders)
             sb.AppendLine($"- {FileScope.RefFor(f)} = {f.Path}{(f.IsDefault ? " (default)" : "")}");
+
+        var channels = refs.Where(r => r.StartsWith('#')).ToList();
+        if (channels.Count > 0) sb.AppendLine("Allowed Slack channels: " + string.Join(", ", channels));
+        var repos = refs.Where(r => r.StartsWith("repo:")).Select(r => r[5..]).ToList();
+        if (repos.Count > 0) sb.AppendLine("Linked GitHub repos: " + string.Join(", ", repos));
 
         sb.AppendLine("\nTools:");
         foreach (var d in tools.Available.Where(t => !t.HiddenFromPlanner))

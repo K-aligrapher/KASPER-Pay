@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, ApiError, type Upload, type WorkflowSummary } from "../api";
+import { api, api2, ApiError, type Upload, type WorkflowSummary } from "../api";
 import { Bunny } from "../Bunny";
 
-type Op = "convert" | "merge" | "images_to_pdf" | "extract" | "rotate" | "compress";
+type Op = "convert" | "merge" | "images_to_pdf" | "extract" | "rotate" | "compress" | "stamp" | "protect" | "unlock" | "ocr";
 
 const OPS: { id: Op; label: string; hint: string }[] = [
   { id: "convert", label: "Convert", hint: "Any format to any format" },
@@ -11,10 +11,14 @@ const OPS: { id: Op; label: string; hint: string }[] = [
   { id: "rotate", label: "Rotate", hint: "Turn pages 90°, 180° or 270°" },
   { id: "compress", label: "Compress", hint: "Make PDFs smaller" },
   { id: "images_to_pdf", label: "Images → PDF", hint: "One image per page" },
+  { id: "stamp", label: "Watermark / numbers", hint: "Add a watermark and/or page numbers" },
+  { id: "ocr", label: "OCR", hint: "Make scanned PDFs or images searchable" },
+  { id: "protect", label: "Protect", hint: "Add a password (never stored)" },
+  { id: "unlock", label: "Unlock", hint: "Remove a password you know" },
 ];
 
 /** Document Studio (PRD §9): local conversions and PDF tools. Results wait in Approvals before saving. */
-export function Documents({ go }: { go: (r: string) => void }) {
+export function Documents({ go, preload }: { go: (r: string) => void; preload?: string | null }) {
   const [files, setFiles] = useState<Upload[]>([]);
   const [op, setOp] = useState<Op>("convert");
   const [to, setTo] = useState("");
@@ -27,6 +31,17 @@ export function Documents({ go }: { go: (r: string) => void }) {
   const [started, setStarted] = useState<WorkflowSummary | null>(null);
   const [engines, setEngines] = useState<{ name: string; installed: boolean; install: string }[]>([]);
   const [drag, setDrag] = useState(false);
+  const [watermark, setWatermark] = useState("");
+  const [pageNumbers, setPageNumbers] = useState(false);
+  const [password, setPassword] = useState("");
+  const [language, setLanguage] = useState("eng");
+
+  // Files sent from Explorer ("Send to → KASPER") arrive as upload ids in the route.
+  useEffect(() => {
+    if (!preload) return;
+    Promise.all(preload.split(",").map((t) => api2.upload(t).catch(() => null)))
+      .then((ups) => setFiles((f) => [...f, ...ups.filter((u): u is Upload => !!u && !f.some((x) => x.upload === u.upload))]));
+  }, [preload]);
 
   useEffect(() => { api.engines().then((e) => setEngines(e.engines)).catch(() => {}); }, []);
 
@@ -73,7 +88,12 @@ export function Documents({ go }: { go: (r: string) => void }) {
         pages: op === "extract" || op === "rotate" ? pages || undefined : undefined,
         degrees: op === "rotate" ? degrees : undefined,
         quality: op === "compress" ? quality : undefined,
+        watermark: op === "stamp" ? watermark || undefined : undefined,
+        pageNumbers: op === "stamp" ? pageNumbers : undefined,
+        password: op === "protect" || op === "unlock" ? password : undefined,
+        language: op === "ocr" ? language : undefined,
       });
+      setPassword("");
       setStarted(wf);
       setFiles([]);
     } catch (e) {
@@ -87,7 +107,8 @@ export function Documents({ go }: { go: (r: string) => void }) {
   const ready =
     files.length > 0 &&
     ((op === "convert" && to) || (op === "merge" && allPdf && files.length > 1) || (op === "images_to_pdf") ||
-      (op === "extract" && allPdf && pages.trim()) || ((op === "rotate" || op === "compress") && allPdf));
+      (op === "extract" && allPdf && pages.trim()) || ((op === "rotate" || op === "compress") && allPdf) ||
+      (op === "stamp" && allPdf && (watermark.trim() || pageNumbers)) || ((op === "protect" || op === "unlock") && allPdf && password) || op === "ocr");
 
   return (
     <div className="page">
@@ -161,7 +182,21 @@ export function Documents({ go }: { go: (r: string) => void }) {
               </select>
             </label>
           )}
-          {(op !== "convert" && op !== "images_to_pdf" && !allPdf) && <div className="warning">This tool works on PDFs. Convert the other files first.</div>}
+          {op === "stamp" && (
+            <>
+              <label>Watermark text <input value={watermark} placeholder="e.g. DRAFT" onChange={(e) => setWatermark(e.target.value)} /></label>
+              <label><input type="checkbox" checked={pageNumbers} onChange={(e) => setPageNumbers(e.target.checked)} /> Add page numbers</label>
+            </>
+          )}
+          {(op === "protect" || op === "unlock") && (
+            <label>Password <input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <span className="muted small"> kept in memory only, never saved</span></label>
+          )}
+          {op === "ocr" && (
+            <label>Language <input style={{ maxWidth: 120 }} value={language} onChange={(e) => setLanguage(e.target.value)} />
+              <span className="muted small"> Tesseract code, e.g. eng, eng+hin</span></label>
+          )}
+          {(op !== "convert" && op !== "images_to_pdf" && op !== "ocr" && !allPdf) && <div className="warning">This tool works on PDFs. Convert the other files first.</div>}
           {op === "merge" && files.length < 2 && <span className="muted small">Add at least two PDFs.</span>}
           <button className="btn-primary" disabled={!ready || busy} onClick={start}>{busy ? "Starting…" : "Start"}</button>
         </div>

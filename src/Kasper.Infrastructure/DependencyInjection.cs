@@ -42,7 +42,16 @@ public static class DependencyInjection
         services.AddScoped<ArtifactStore>();
         services.AddSingleton<Documents.DocumentConverter>();
         services.AddSingleton<Notion.NotionSettingsStore>();
-        services.AddSingleton<IIntegrationStatus>(sp => sp.GetRequiredService<Notion.NotionSettingsStore>());
+        services.AddSingleton<Integrations.SlackSettingsStore>();
+        services.AddSingleton<Integrations.GitHubSettingsStore>();
+        services.AddSingleton<IIntegrationStatus, Integrations.IntegrationStatus>();
+        services.AddSingleton<Security.EphemeralSecrets>();
+        services.AddHttpClient<Integrations.SlackClient>(c => c.Timeout = TimeSpan.FromSeconds(30));
+        services.AddHttpClient<Integrations.GitHubClient>(c => c.Timeout = TimeSpan.FromSeconds(30));
+        services.Configure<Mcp.McpOptions>(config.GetSection(Mcp.McpOptions.Section));
+        services.AddSingleton<Mcp.McpHub>();
+        services.AddSingleton<Mcp.IToolSource>(sp => sp.GetRequiredService<Mcp.McpHub>());
+        services.AddHostedService(sp => sp.GetRequiredService<Mcp.McpHub>());
         services.AddHttpClient<Notion.NotionClient>(c => c.Timeout = TimeSpan.FromSeconds(40));
 
         // Tools (only these can ever run)
@@ -56,6 +65,13 @@ public static class DependencyInjection
         services.AddScoped<ITool, PdfRotateTool>();
         services.AddScoped<ITool, PdfCompressTool>();
         services.AddScoped<ITool, ImagesToPdfTool>();
+        services.AddScoped<ITool, PdfStampTool>();
+        services.AddScoped<ITool, PdfProtectTool>();
+        services.AddScoped<ITool, PdfUnlockTool>();
+        services.AddScoped<ITool, OcrTool>();
+        services.AddScoped<ITool, Integrations.SlackReadTool>();
+        services.AddScoped<ITool, Integrations.SlackSendTool>();
+        services.AddScoped<ITool, Integrations.GitHubSummaryTool>();
         services.AddScoped<ITool, NotionSearchTool>();
         services.AddScoped<ITool, NotionCreateTaskTool>();
         services.AddScoped<ITool, MockEchoTool>();
@@ -72,6 +88,9 @@ public static class DependencyInjection
         services.AddScoped<IPlanner, OllamaPlanner>();
         services.AddScoped<AssistantService>();
         services.AddHostedService<WorkflowWorker>();
+        services.AddScoped<ProjectService>();
+        services.AddSingleton<ScheduleRunner>();
+        services.AddHostedService(sp => sp.GetRequiredService<ScheduleRunner>());
 
         return services;
     }

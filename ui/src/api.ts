@@ -139,8 +139,37 @@ export const api = {
   disconnectNotion: () => call<void>("/api/integrations/notion", { method: "DELETE" }),
 };
 
+export type Project = {
+  id: string; name: string; description: string; status: string; folderPath: string | null; notionQuery: string | null;
+  slackChannel: string | null; gitHubRepo: string | null; notes: string; lastBriefing: string | null; lastBriefingAtUtc: string | null; updatedAtUtc: string;
+};
+export type Schedule = { id: string; name: string; request: string; timeOfDay: string; days: string; enabled: boolean; lastRunUtc: string | null; lastWorkflowId: string | null };
+
+export const api2 = {
+  slack: () => call<{ connected: boolean; team: string; channels: string[] }>("/api/integrations/slack"),
+  connectSlack: (token: string, channels: string) => post<{ team: string; channels: string[] }>("/api/integrations/slack", { token, channels }),
+  disconnectSlack: () => call<void>("/api/integrations/slack", { method: "DELETE" }),
+  github: () => call<{ connected: boolean; login: string | null }>("/api/integrations/github"),
+  connectGitHub: (token: string) => post<{ login: string }>("/api/integrations/github", { token }),
+  disconnectGitHub: () => call<void>("/api/integrations/github", { method: "DELETE" }),
+  projects: () => call<Project[]>("/api/projects"),
+  saveProject: (p: Partial<Project>) =>
+    p.id ? call<Project>(`/api/projects/${p.id}`, { method: "PUT", body: JSON.stringify(p) }) : post<Project>("/api/projects", p),
+  deleteProject: (id: string) => call<void>(`/api/projects/${id}`, { method: "DELETE" }),
+  briefing: (id: string) => post<Project>(`/api/projects/${id}/briefing`),
+  schedules: () => call<Schedule[]>("/api/schedules"),
+  addSchedule: (s: Partial<Schedule>) => post<Schedule>("/api/schedules", { enabled: true, days: "daily", ...s }),
+  toggleSchedule: (id: string, enabled: boolean) => call<Schedule>(`/api/schedules/${id}/enabled?enabled=${enabled}`, { method: "PUT" }),
+  deleteSchedule: (id: string) => call<void>(`/api/schedules/${id}`, { method: "DELETE" }),
+  mcp: () => call<{ servers: { name: string; running: boolean; tools: number; error: string | null }[]; tools: { id: string; description: string; requiresApproval: boolean }[] }>("/api/mcp"),
+  upload: (token: string) => call<Upload>(`/api/documents/uploads/${token}`),
+};
+
 export type Upload = { upload: string; fileName: string; sizeBytes: number; targets: string[] };
-export type DocumentJob = { operation: string; uploads: string[]; to?: string; pages?: string; degrees?: number; quality?: string; fileName?: string };
+export type DocumentJob = {
+  operation: string; uploads: string[]; to?: string; pages?: string; degrees?: number; quality?: string; fileName?: string;
+  watermark?: string; pageNumbers?: boolean; password?: string; language?: string;
+};
 export type Integration = { name: string; connected: boolean; detail: string };
 
 /**

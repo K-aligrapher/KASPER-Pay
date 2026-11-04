@@ -209,3 +209,6 @@ input:focus, select:focus { border-color: var(--gold); outline: none; }
 .integration-head { display: flex; justify-content: space-between; align-items: center; }
 .integration { display: flex; flex-direction: column; gap: 10px; }
 .steps-howto { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; color: var(--text-muted); }
+.briefing { max-height: none; font-family: var(--font-ui); font-size: 13px; }
+textarea.notes { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font: 13px/1.5 var(--font-mono); resize: vertical; }
+.history-list > .btn-primary { margin: 0 8px 8px; }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Reflection;
 using Kasper.Api.Endpoints;
@@ -62,6 +63,8 @@ public sealed class KasperApiHost : IAsyncDisposable
             k.Limits.MaxRequestBodySize = 1 * 1024 * 1024;
         });
 
+        builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(new Kasper.Infrastructure.Observability.FileLoggerProvider());
         builder.Services.AddKasperInfrastructure(builder.Configuration);
         configureServices?.Invoke(builder.Services);
 
@@ -78,6 +81,7 @@ public sealed class KasperApiHost : IAsyncDisposable
         app.MapCoreEndpoints(version);
         app.MapWorkflowEndpoints();
         app.MapDocumentEndpoints();
+        app.MapConnectEndpoints();
         if (Directory.Exists(webRoot))
             app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = new PhysicalFileProvider(Path.GetFullPath(webRoot)) });
 

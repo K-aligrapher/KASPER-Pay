@@ -12,6 +12,8 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
     public DbSet<AllowedFolder> AllowedFolders => Set<AllowedFolder>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<MockOutboxEntry> MockOutbox => Set<MockOutboxEntry>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<Schedule> Schedules => Set<Schedule>();
 
     /// <summary>All times are stored as UTC; SQLite loses DateTimeKind, so restore it on read.</summary>
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
@@ -102,6 +104,27 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
             e.Property(x => x.Outcome).HasMaxLength(64);
             e.HasIndex(x => x.WorkflowId);
             e.HasIndex(x => x.TimestampUtc);
+        });
+
+        b.Entity<Project>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Name);
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Status).HasMaxLength(32);
+            e.Property(x => x.FolderPath).HasMaxLength(1024);
+            e.Property(x => x.NotionQuery).HasMaxLength(200);
+            e.Property(x => x.SlackChannel).HasMaxLength(100);
+            e.Property(x => x.GitHubRepo).HasMaxLength(140);
+        });
+
+        b.Entity<Schedule>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).HasMaxLength(100);
+            e.Property(x => x.Request).HasMaxLength(2000);
+            e.Property(x => x.TimeOfDay).HasMaxLength(5);
+            e.Property(x => x.Days).HasMaxLength(40);
         });
 
         b.Entity<MockOutboxEntry>(e =>

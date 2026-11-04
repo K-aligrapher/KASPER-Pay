@@ -22,6 +22,8 @@ app.Configure(config =>
         .WithExample("ask", "\"write a packing list for a 3-day trip and save it as packing.md\"");
     config.AddCommand<ConvertCommand>("convert").WithDescription("Convert files: kasper convert report.docx --to pdf");
     config.AddCommand<PdfCommand>("pdf").WithDescription("PDF tools: merge, pages, rotate, compress, images");
+    config.AddCommand<ProjectsCommand>("projects").WithDescription("List projects, or: kasper projects <name> briefing");
+    config.AddCommand<DropCommand>("drop").WithDescription("Open files in the Documents screen (Explorer Send To).");
     config.AddCommand<ApprovalsCommand>("approvals").WithDescription("List actions waiting for your approval.");
     config.AddCommand<ReviewCommand>("review").WithDescription("Approve, edit or reject waiting actions (Final Review).");
     config.AddCommand<StatusCommand>("status").WithDescription("Recent tasks, or one task's full trace.");

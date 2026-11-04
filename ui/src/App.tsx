@@ -7,6 +7,7 @@ import { Home } from "./views/Home";
 import { Settings } from "./views/Settings";
 import { Documents } from "./views/Documents";
 import { Integrations } from "./views/Integrations";
+import { Projects } from "./views/Projects";
 
 type View = "home" | "documents" | "projects" | "approvals" | "history" | "integrations" | "settings";
 
@@ -15,7 +16,7 @@ const NAV: { id: View; label: string; milestone?: string; blurb?: string }[] = [
   { id: "approvals", label: "Approvals" },
   { id: "history", label: "History" },
   { id: "documents", label: "Documents" },
-  { id: "projects", label: "Projects", milestone: "Milestone 6", blurb: "Link folders, Notion, Slack and GitHub per project, with briefings and tasks." },
+  { id: "projects", label: "Projects" },
   { id: "integrations", label: "Integrations" },
   { id: "settings", label: "Settings" },
 ];
@@ -83,7 +84,8 @@ export function App() {
         </div>
         {route.view === "approvals" && <div className="view"><Approvals lastEvent={lastEvent} go={go} /></div>}
         {route.view === "history" && <div className="view"><History selected={route.param} lastEvent={lastEvent} go={go} /></div>}
-        {route.view === "documents" && <div className="view"><Documents go={go} /></div>}
+        {route.view === "documents" && <div className="view"><Documents go={go} preload={route.param} /></div>}
+        {route.view === "projects" && <div className="view"><Projects selected={route.param} go={go} /></div>}
         {route.view === "integrations" && <div className="view"><Integrations /></div>}
         {route.view === "settings" && <div className="view"><Settings ready={ready} /></div>}
         {current.milestone && (

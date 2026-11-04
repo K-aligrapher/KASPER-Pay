@@ -130,7 +130,16 @@ public static partial class PlanValidator
         switch (p.Type)
         {
             case ParamType.FolderRef when !FolderPattern().IsMatch(s) || !allowedFolderRefs.Contains(s):
-                errors.Add($"{where}: '{p.Name}' must be one of the allowed folders ({string.Join(", ", allowedFolderRefs)}).");
+                errors.Add($"{where}: '{p.Name}' must be one of the allowed folders ({string.Join(", ", allowedFolderRefs.Where(r => r.StartsWith("folder:")))}).");
+                break;
+            case ParamType.Channel when !s.StartsWith('#') || !allowedFolderRefs.Contains(s.ToLowerInvariant()):
+                errors.Add($"{where}: '{p.Name}' must be an allowed Slack channel ({string.Join(", ", allowedFolderRefs.Where(r => r.StartsWith('#')).DefaultIfEmpty("none connected"))}).");
+                break;
+            case ParamType.Repo when !allowedFolderRefs.Contains("repo:" + s.ToLowerInvariant()):
+                errors.Add($"{where}: '{p.Name}' must be a GitHub repo linked to a project.");
+                break;
+            case ParamType.Secret when !s.StartsWith("secret:", StringComparison.Ordinal):
+                errors.Add($"{where}: '{p.Name}' must be entered by you, not planned.");
                 break;
             case ParamType.FileName when FileNameProblem(s) is { } problem:
                 errors.Add($"{where}: '{p.Name}' {problem}");

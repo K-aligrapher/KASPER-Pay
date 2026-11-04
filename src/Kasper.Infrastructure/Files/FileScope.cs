@@ -11,8 +11,22 @@ namespace Kasper.Infrastructure.Files;
 /// The folders KASPER may save into (FR-005, NFR-006). Paths are canonicalized, must stay inside
 /// an allowed folder, and may not pass through junctions/symlinks that could escape it.
 /// </summary>
-public sealed class FileScope(KasperDbContext db)
+public sealed class FileScope(KasperDbContext db, Integrations.SlackSettingsStore slack)
 {
+    /// <summary>
+    /// Everything a plan may reference (FR-005): "folder:N", "#channel" for allowlisted Slack
+    /// channels, and "repo:owner/name" for GitHub repos linked to a project.
+    /// </summary>
+    public async Task<HashSet<string>> AllowedRefsAsync(CancellationToken ct)
+    {
+        var refs = (await ListAsync(ct)).Select(RefFor).ToHashSet();
+        if (slack.Load() is { } s)
+            foreach (var c in s.Channels) refs.Add("#" + c.Name.ToLowerInvariant());
+        foreach (var repo in await db.Projects.Where(p => p.GitHubRepo != null).Select(p => p.GitHubRepo!).ToListAsync(ct))
+            refs.Add("repo:" + repo.ToLowerInvariant());
+        return refs;
+    }
+
     public static string DefaultFolder { get; } = Path.Combine(
         Environment.GetEnvironmentVariable("KASPER_DEFAULT_SAVE_FOLDER") is { Length: > 0 } custom
             ? custom

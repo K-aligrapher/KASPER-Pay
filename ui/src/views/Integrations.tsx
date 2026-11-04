@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type Integration } from "../api";
+import { api, api2, ApiError, type Integration } from "../api";
 
 export function Integrations() {
   const [items, setItems] = useState<Integration[]>([]);
@@ -64,10 +64,87 @@ export function Integrations() {
         {message && <div className={message.ok ? "notice" : "error"}>{message.text}</div>}
       </section>
 
-      <section className="card integration">
-        <div className="integration-head"><h2>Slack</h2><span className="pill">Milestone 5</span></div>
-        <p className="muted">Read chosen channels and post as a KASPER bot, always after your approval.</p>
-      </section>
+      <SlackCard />
+      <GitHubCard />
     </div>
+  );
+}
+
+function useAction() {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const run = async (fn: () => Promise<string>, after?: () => void) => {
+    setBusy(true);
+    setMessage(null);
+    try { setMessage({ ok: true, text: await fn() }); after?.(); }
+    catch (e) { setMessage({ ok: false, text: e instanceof ApiError ? e.message : "Something went wrong." }); }
+    finally { setBusy(false); }
+  };
+  return { busy, message, run };
+}
+
+function SlackCard() {
+  const [state, setState] = useState<{ connected: boolean; team: string; channels: string[] } | null>(null);
+  const [token, setToken] = useState("");
+  const [channels, setChannels] = useState("");
+  const { busy, message, run } = useAction();
+  const load = useCallback(() => { api2.slack().then(setState).catch(() => {}); }, []);
+  useEffect(load, [load]);
+
+  return (
+    <section className="card integration">
+      <div className="integration-head">
+        <h2>Slack</h2>
+        <span className={state?.connected ? "pill pill--Succeeded" : "pill"}>{state?.connected ? "Connected" : "Not connected"}</span>
+      </div>
+      {state?.connected ? (
+        <>
+          <p>KASPER bot in <b>{state.team}</b> may use: {state.channels.join(", ")}. Try: <em>“summarise #{state.channels[0]?.slice(1)} and post the summary there”</em>.</p>
+          <div><button className="btn-danger" disabled={busy} onClick={() => run(async () => { await api2.disconnectSlack(); return "Disconnected. The token was deleted."; }, load)}>Disconnect</button></div>
+        </>
+      ) : (
+        <>
+          <ol className="steps-howto">
+            <li>Go to <a href="https://api.slack.com/apps" target="_blank" rel="noreferrer">api.slack.com/apps</a> → <b>Create New App</b> → From scratch.</li>
+            <li><b>OAuth &amp; Permissions</b> → Bot Token Scopes: <code>channels:read</code>, <code>channels:history</code>, <code>groups:read</code>, <code>groups:history</code>, <code>chat:write</code>. Install to workspace, copy the <b>Bot User OAuth Token</b> (xoxb-…).</li>
+            <li>In each channel KASPER may use, type <code>/invite @your-app</code>.</li>
+          </ol>
+          <form className="edit-form" onSubmit={(e) => { e.preventDefault(); run(async () => { const r = await api2.connectSlack(token, channels); setToken(""); return `Connected to ${r.team}: ${r.channels.join(", ")}`; }, load); }}>
+            <label><span>Bot token</span><input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} placeholder="xoxb-…" /></label>
+            <label><span>Allowed channels</span><input value={channels} onChange={(e) => setChannels(e.target.value)} placeholder="#team, #updates" /></label>
+            <div><button className="btn-primary" disabled={busy || !token || !channels}>{busy ? "Checking…" : "Connect"}</button></div>
+          </form>
+          <p className="muted small">KASPER posts as the bot, never as you, and only after you approve each message. The token is encrypted for your Windows account.</p>
+        </>
+      )}
+      {message && <div className={message.ok ? "notice" : "error"}>{message.text}</div>}
+    </section>
+  );
+}
+
+function GitHubCard() {
+  const [state, setState] = useState<{ connected: boolean; login: string | null } | null>(null);
+  const [token, setToken] = useState("");
+  const { busy, message, run } = useAction();
+  const load = useCallback(() => { api2.github().then(setState).catch(() => {}); }, []);
+  useEffect(load, [load]);
+
+  return (
+    <section className="card integration">
+      <div className="integration-head">
+        <h2>GitHub <span className="muted small">read-only</span></h2>
+        <span className={state?.connected ? "pill pill--Succeeded" : "pill"}>{state?.connected ? `@${state.login}` : "Public repos only"}</span>
+      </div>
+      <p className="muted">Link repos to Projects to see open PRs, issues and commits in briefings. Public repos work without a token (60 requests/hour).</p>
+      {state?.connected ? (
+        <div><button className="btn-danger" disabled={busy} onClick={() => run(async () => { await api2.disconnectGitHub(); return "Token removed."; }, load)}>Remove token</button></div>
+      ) : (
+        <form className="inline-form" onSubmit={(e) => { e.preventDefault(); run(async () => { const r = await api2.connectGitHub(token); setToken(""); return `Signed in as ${r.login}.`; }, load); }}>
+          <input type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} placeholder="Fine-grained token with read-only access (optional)" />
+          <button className="btn-primary" disabled={busy || !token}>Add token</button>
+        </form>
+      )}
+      {message && <div className={message.ok ? "notice" : "error"}>{message.text}</div>}
+    </section>
   );
 }

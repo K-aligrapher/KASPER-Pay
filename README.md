@@ -5,7 +5,7 @@
 
 ---
 
-**Status:** Milestones 1–4 done (foundation, Final Review runtime, Document Studio, Notion). See [KASPER_PRD.md](KASPER_PRD.md).
+**Status:** Milestones 1–7 built. What is done vs the PRD: [docs/prd-status.md](docs/prd-status.md). Docs: [architecture](docs/architecture.md) · [threat model](docs/threat-model.md) · [connect services](docs/provider-setup.md) · [engines](docs/engines.md).
 
 | Works now | Coming next |
 |---|---|
@@ -67,7 +67,7 @@ Environment variables work too (`KASPER__Ollama__Model=...`, see [.env.example](
 ```powershell
 cd ui; npm install; npm run build; cd ..     # UI is served from the desktop app
 dotnet build Kasper.sln
-dotnet test                                    # 101 tests, no Ollama or accounts needed
+dotnet test                                    # 122 tests, no Ollama or accounts needed
 .\src\Kasper.Cli\bin\Debug\net10.0\kasper.exe  # finds the Debug desktop build automatically
 ```
 

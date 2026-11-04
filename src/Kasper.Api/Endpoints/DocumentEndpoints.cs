@@ -14,7 +14,8 @@ using Microsoft.AspNetCore.Routing;
 namespace Kasper.Api.Endpoints;
 
 public sealed record DocumentJobDto(string Operation, IReadOnlyList<Guid> Uploads, string? To = null, string? Pages = null,
-    int? Degrees = null, string? Quality = null, string? FileName = null, string? Folder = null);
+    int? Degrees = null, string? Quality = null, string? FileName = null, string? Folder = null,
+    string? Watermark = null, bool PageNumbers = false, string? Password = null, string? Language = null);
 
 public sealed record UploadDto(Guid Upload, string FileName, long SizeBytes, IReadOnlyList<string> Targets);
 
@@ -57,7 +58,7 @@ internal static class DocumentEndpoints
         });
 
         // Quick actions: the server builds the plan (no model involved), then it runs like any workflow.
-        app.MapPost("/api/documents/jobs", async (DocumentJobDto job, WorkflowService workflows, FileScope scope, IClock clock, CancellationToken ct) =>
+        app.MapPost("/api/documents/jobs", async (DocumentJobDto job, WorkflowService workflows, FileScope scope, IClock clock, Kasper.Infrastructure.Security.EphemeralSecrets secrets, CancellationToken ct) =>
         {
             if (job.Uploads is not { Count: > 0 and <= 12 })
                 return Results.BadRequest(new ErrorDto("invalid_job", "Add 1–12 files."));
@@ -104,6 +105,33 @@ internal static class DocumentEndpoints
                     Commit(img);
                     summary = $"Turn {Plural(imports.Count)} into a PDF";
                     break;
+                case "stamp" or "protect" or "unlock" or "ocr":
+                    if (job.Operation is "protect" or "unlock" && string.IsNullOrEmpty(job.Password))
+                        return Results.BadRequest(new ErrorDto("password_required", "Type the password."));
+                    if (job.Operation == "stamp" && string.IsNullOrWhiteSpace(job.Watermark) && !job.PageNumbers)
+                        return Results.BadRequest(new ErrorDto("nothing_to_add", "Choose a watermark, page numbers, or both."));
+                    foreach (var k in imports)
+                    {
+                        var key = Next();
+                        var input = new JsonObject { ["artifact"] = $"${k}.artifact" };
+                        if (job.Operation == "stamp")
+                        {
+                            if (!string.IsNullOrWhiteSpace(job.Watermark)) input["watermark"] = job.Watermark;
+                            if (job.PageNumbers) input["pageNumbers"] = "yes";
+                        }
+                        if (job.Operation is "protect" or "unlock") input["password"] = secrets.Put(job.Password!); // never stored
+                        if (job.Operation == "ocr" && !string.IsNullOrWhiteSpace(job.Language)) input["language"] = job.Language;
+                        steps.Add(new(key, "pdf." + job.Operation, job.Operation switch { "stamp" => "Add watermark / page numbers", "protect" => "Add password", "unlock" => "Remove password", _ => "Make searchable (OCR)" }, input));
+                        Commit(key);
+                    }
+                    summary = job.Operation switch
+                    {
+                        "stamp" => $"Stamp {Plural(imports.Count)}",
+                        "protect" => $"Password-protect {Plural(imports.Count)}",
+                        "unlock" => $"Unlock {Plural(imports.Count)}",
+                        _ => $"OCR {Plural(imports.Count)}",
+                    };
+                    break;
                 case "extract" or "rotate" or "compress":
                     foreach (var k in imports)
                     {
@@ -124,7 +152,7 @@ internal static class DocumentEndpoints
                     };
                     break;
                 default:
-                    return Results.BadRequest(new ErrorDto("invalid_job", "Operation must be convert, merge, images_to_pdf, extract, rotate or compress."));
+                    return Results.BadRequest(new ErrorDto("invalid_job", "Operation must be convert, merge, images_to_pdf, extract, rotate, compress, stamp, protect, unlock or ocr."));
             }
 
             try
@@ -141,13 +169,14 @@ internal static class DocumentEndpoints
 
         // ---- Integrations (FR-002/004) --------------------------------------------------------
 
-        app.MapGet("/api/integrations", (NotionSettingsStore notion) =>
+        app.MapGet("/api/integrations", (NotionSettingsStore notion, Kasper.Infrastructure.Integrations.SlackSettingsStore slack, Kasper.Infrastructure.Integrations.GitHubSettingsStore github) =>
         {
             var s = notion.Load();
             return new[]
             {
                 new { Name = "notion", Connected = s is not null, Detail = s is null ? "Not connected" : $"Tasks go to “{s.DatabaseTitle}”" },
-                new { Name = "slack", Connected = false, Detail = "Coming in Milestone 5" },
+                new { Name = "slack", Connected = slack.Connected, Detail = slack.Load() is { } sl ? $"{sl.Team}: {string.Join(", ", sl.Channels.Select(c => "#" + c.Name))}" : "Not connected" },
+                new { Name = "github", Connected = github.Load() is not null, Detail = github.Load()?.Login is { } login ? $"Signed in as {login}" : "Public repos only (no token)" },
             };
         });
 

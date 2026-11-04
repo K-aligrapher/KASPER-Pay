@@ -17,6 +17,7 @@ $parts = @($userPath -split ';' | Where-Object { $_ -and $_ -ne $InstallDir })
 [Environment]::SetEnvironmentVariable('Path', ($parts -join ';'), 'User')
 
 Remove-Item (Join-Path ([Environment]::GetFolderPath('Programs')) 'KASPER.lnk') -ErrorAction SilentlyContinue
+Remove-Item (Join-Path ([Environment]::GetFolderPath('SendTo')) 'KASPER.lnk') -ErrorAction SilentlyContinue
 if (Test-Path $InstallDir) { Remove-Item $InstallDir -Recurse -Force }
 if ($RemoveData) { Remove-Item (Join-Path $env:LOCALAPPDATA 'KASPER') -Recurse -Force -ErrorAction SilentlyContinue }
 

@@ -30,6 +30,7 @@ public sealed class WorkflowService(
     IClock clock,
     IWorkflowEvents events,
     RunningWorkflows running,
+    Integrations.SlackSettingsStore slack,
     IOptionsMonitor<RuntimeOptions> options)
 {
     /// <summary>The person using this PC. KASPER v1 has a single local operator.</summary>
@@ -41,7 +42,7 @@ public sealed class WorkflowService(
             throw new WorkflowRequestException(400, "invalid_request", "The request must be 1–8000 characters.");
 
         await scope.EnsureDefaultAsync(clock.UtcNow, ct);
-        var folderRefs = (await scope.ListAsync(ct)).Select(FileScope.RefFor).ToHashSet();
+        var folderRefs = await scope.AllowedRefsAsync(ct);
         var errors = PlanValidator.Validate(plan, tools, folderRefs, maxSteps ?? options.CurrentValue.MaxSteps);
         if (errors.Count > 0)
             throw new WorkflowRequestException(400, "plan_invalid", "The plan was rejected by validation.", errors);
@@ -161,7 +162,7 @@ public sealed class WorkflowService(
         var d = tools.Find(step.ToolId)!.Descriptor;
         var steps = await db.Steps.Where(s => s.WorkflowId == step.WorkflowId && s.Sequence < step.Sequence).ToListAsync(ct);
         var earlier = steps.ToDictionary(s => s.Key, s => tools.Find(s.ToolId)!.Descriptor);
-        var folderRefs = (await scope.ListAsync(ct)).Select(FileScope.RefFor).ToHashSet();
+        var folderRefs = await scope.AllowedRefsAsync(ct);
 
         var input = JsonNode.Parse(step.InputJson) as JsonObject ?? [];
         var errors = new List<string>();
@@ -238,9 +239,12 @@ public sealed class WorkflowService(
             foreach (var p in tool.Descriptor.Parameters.Where(p => p.Editable))
             {
                 var value = input[p.Name] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
-                var opts = p.Type == ParamType.FolderRef
-                    ? folders.Select(f => new OptionDto(FileScope.RefFor(f), f.Path)).ToList()
-                    : null;
+                var opts = p.Type switch
+                {
+                    ParamType.FolderRef => folders.Select(f => new OptionDto(FileScope.RefFor(f), f.Path)).ToList(),
+                    ParamType.Channel => slack.Load()?.Channels.Select(c => new OptionDto("#" + c.Name, "#" + c.Name)).ToList(),
+                    _ => null,
+                };
                 editable.Add(new EditableFieldDto(p.Name, p.Description, p.Type.ToString(), value, opts));
             }
         }

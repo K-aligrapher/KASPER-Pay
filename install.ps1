@@ -61,6 +61,18 @@ if (-not $NoShortcut) {
     $s.Save()
 }
 
+# 6. Explorer "Send to -> KASPER" (FR-104): opens the files in the Documents screen.
+if (-not $NoShortcut) {
+    $sendTo = Join-Path ([Environment]::GetFolderPath('SendTo')) 'KASPER.lnk'
+    $shell = New-Object -ComObject WScript.Shell
+    $s = $shell.CreateShortcut($sendTo)
+    $s.TargetPath = Join-Path $InstallDir 'kasper.exe'
+    $s.Arguments = 'drop'
+    $s.WindowStyle = 7  # minimized: the console closes as soon as the files are handed over
+    $s.IconLocation = Join-Path $InstallDir 'kasper.ico'
+    $s.Save()
+}
+
 Write-Host ""
 Write-Host "Done! Open a NEW cmd or PowerShell window and type:  kasper" -ForegroundColor Yellow
 Write-Host "Or press Ctrl+Space after starting KASPER from the Start menu."
