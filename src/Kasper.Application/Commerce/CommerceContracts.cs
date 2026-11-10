@@ -50,6 +50,12 @@ public interface ICatalog
     Product? Find(string productId);
 }
 
+/// <summary>Address of the local app (set at startup). PayPal sends the buyer back here after checkout.</summary>
+public static class LocalEndpoint
+{
+    public static string? BaseUrl { get; set; }
+}
+
 public static class Money
 {
     /// <summary>PayPal wants amounts as strings with exactly two decimals and a dot separator.</summary>

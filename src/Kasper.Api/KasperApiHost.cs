@@ -8,6 +8,7 @@ using Kasper.Infrastructure;
 using Kasper.Infrastructure.Security;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Configuration;
@@ -84,6 +85,10 @@ public sealed class KasperApiHost : IAsyncDisposable
         app.MapDocumentEndpoints();
         app.MapConnectEndpoints();
         app.MapPaymentEndpoints();
+        app.MapGet("/paypal/done", (string? result) => Results.Content(
+            "<!doctype html><meta charset=utf-8><title>KASPER</title><body style=\"font-family:sans-serif;background:#000;color:#ffc107;text-align:center;padding-top:20vh\">"
+            + (result == "approved" ? "<h1>Payment approved</h1><p>KASPER is finishing the purchase. You can close this tab.</p>" : "<h1>Payment cancelled</h1><p>Nothing was charged. You can close this tab.</p>")
+            + "</body>", "text/html"));
         if (Directory.Exists(webRoot))
             app.MapFallbackToFile("index.html", new StaticFileOptions { FileProvider = new PhysicalFileProvider(Path.GetFullPath(webRoot)) });
 
@@ -99,6 +104,7 @@ public sealed class KasperApiHost : IAsyncDisposable
         KestrelMs = sw.ElapsedMilliseconds - MigrateMs;
         var address = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         Port = new Uri(address).Port;
+        Kasper.Application.Commerce.LocalEndpoint.BaseUrl = BaseUrl;
     }
 
     public async ValueTask DisposeAsync()

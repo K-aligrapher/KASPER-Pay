@@ -59,6 +59,12 @@ public sealed class PayPalOrdersService(
             },
         };
 
+        if (LocalEndpoint.BaseUrl is { } local && body["application_context"] is JsonObject ctx)
+        {
+            ctx["return_url"] = local + "/paypal/done?result=approved";
+            ctx["cancel_url"] = local + "/paypal/done?result=cancelled";
+        }
+
         var json = await SendAsync(HttpMethod.Post, "/v2/checkout/orders", body, requestId, ct);
         var order = ParseOrder(json);
         log.LogInformation("PayPal order {OrderId} created, status {Status}", order.Id, order.Status);
