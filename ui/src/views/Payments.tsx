@@ -6,7 +6,10 @@ import {
 } from "ag-grid-community";
 import { AllEnterpriseModule, LicenseManager } from "ag-grid-enterprise";
 import { AgCharts } from "ag-charts-react";
-import type { AgCartesianChartOptions } from "ag-charts-community";
+import {
+  AllCommunityModule as ChartsCommunityModule, ModuleRegistry as ChartsModuleRegistry,
+  type AgCartesianChartOptions,
+} from "ag-charts-community";
 import { api2 as api, ApiError, type ChainStatus, type Guardrails, type Payment, type WorkflowEvent } from "../api";
 import { Bunny } from "../Bunny";
 import { timeAgo } from "../components";
@@ -17,6 +20,7 @@ const AG_KEY = (import.meta as unknown as { env: Record<string, string | undefin
 const ENTERPRISE = !!AG_KEY;
 ModuleRegistry.registerModules(ENTERPRISE ? [AllCommunityModule, AllEnterpriseModule] : [AllCommunityModule]);
 if (AG_KEY) LicenseManager.setLicenseKey(AG_KEY);
+ChartsModuleRegistry.registerModules([ChartsCommunityModule]); // AG Charts has its own registry, separate from the grid's
 
 const gridTheme = themeQuartz.withPart(colorSchemeDark).withParams({
   backgroundColor: "#161616",
