@@ -67,6 +67,11 @@ public static class DependencyInjection
         services.AddHttpClient<IPayPalOrders, PayPal.PayPalOrdersService>(c => c.Timeout = TimeSpan.FromSeconds(30));
 
         services.AddHttpClient<IPayPalInvoices, PayPal.PayPalInvoicingService>(c => c.Timeout = TimeSpan.FromSeconds(30));
+        services.Configure<Channel3Options>(config.GetSection(Channel3Options.Section));
+        services.AddHttpClient<Commerce.Channel3Client>(c => c.Timeout = TimeSpan.FromSeconds(25));
+        services.AddScoped<Commerce.ProductService>();
+        services.AddScoped<IProductResolver>(sp => sp.GetRequiredService<Commerce.ProductService>());
+        services.AddScoped<IProductFinder>(sp => sp.GetRequiredService<Commerce.ProductService>());
         services.AddSingleton<IBrowserLauncher, Commerce.BrowserLauncher>();
 
         // Tools (only these can ever run)
@@ -97,8 +102,13 @@ public static class DependencyInjection
         services.AddScoped<ITool, Integrations.GitHubSummaryTool>();
         services.AddScoped<ITool, NotionSearchTool>();
         services.AddScoped<ITool, NotionCreateTaskTool>();
+        services.AddScoped<ITool, Commerce.FindProductTool>();
         services.AddScoped<ITool, Commerce.PurchaseTool>();
         services.AddScoped<ITool, Commerce.InvoiceTool>();
+        services.AddScoped<ITool, Commerce.InvoiceStatusTool>();
+        services.AddScoped<ITool, Commerce.InvoiceRemindTool>();
+        services.AddScoped<ITool, Commerce.InvoiceSplitTool>();
+        services.AddScoped<Commerce.InvoiceTracker>();
         services.AddScoped<Commerce.PaymentService>();
         services.AddScoped<ITool, MockEchoTool>();
         services.AddScoped<ITool, MockFlakyTool>();

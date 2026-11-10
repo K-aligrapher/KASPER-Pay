@@ -16,6 +16,7 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
     public DbSet<Schedule> Schedules => Set<Schedule>();
     public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<ProductQuote> Quotes => Set<ProductQuote>();
 
     /// <summary>All times are stored as UTC; SQLite loses DateTimeKind, so restore it on read.</summary>
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
@@ -145,6 +146,10 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
             e.HasIndex(x => x.Status);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             e.Property(x => x.Kind).HasMaxLength(16);
+            e.Property(x => x.InvoiceState).HasMaxLength(32);
+            e.Property(x => x.ReceiptHash).HasMaxLength(64);
+            e.Property(x => x.PrevReceiptHash).HasMaxLength(64);
+            e.HasIndex(x => x.ReceiptSeq).IsUnique();
             e.Property(x => x.Recipient).HasMaxLength(320);
             e.Property(x => x.PayPalInvoiceId).HasMaxLength(64);
             e.Property(x => x.ProductId).HasMaxLength(64);
@@ -159,6 +164,21 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
             e.Property(x => x.PayPalCaptureId).HasMaxLength(64);
             e.Property(x => x.ApproveUrl).HasMaxLength(500);
             e.Property(x => x.FailureSummary).HasMaxLength(500);
+        });
+
+        b.Entity<ProductQuote>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.CreatedAtUtc);
+            e.Property(x => x.Id).HasMaxLength(40);
+            e.Property(x => x.Source).HasMaxLength(16);
+            e.Property(x => x.SourceProductId).HasMaxLength(128);
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.Brand).HasMaxLength(100);
+            e.Property(x => x.Merchant).HasMaxLength(200);
+            e.Property(x => x.Url).HasMaxLength(1000);
+            e.Property(x => x.ImageUrl).HasMaxLength(1000);
+            e.Property(x => x.Currency).HasMaxLength(3);
         });
 
         b.Entity<MockOutboxEntry>(e =>

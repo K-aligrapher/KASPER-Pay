@@ -79,7 +79,14 @@ public interface ITool
     /// Extra facts bound into the approval fingerprint (e.g. the code-derived price), so the approval
     /// is invalid if they change. Null for tools whose input already says everything.
     /// </summary>
-    JsonObject? FingerprintExtras(JsonObject input) => null;
+    Task<JsonObject?> FingerprintExtrasAsync(JsonObject input, CancellationToken ct) => Task.FromResult<JsonObject?>(null);
+
+    /// <summary>
+    /// A standing mandate the owner set up in advance may pre-approve a small action. Returns why it was
+    /// pre-approved, or null to require Final Review as usual. Never called for the model's benefit:
+    /// the limits live in settings and are checked in code.
+    /// </summary>
+    Task<string?> TryAutoApproveAsync(JsonObject input, CancellationToken ct) => Task.FromResult<string?>(null);
 
     /// <summary>
     /// Checked when a plan is submitted, before anything is staged. Returns reasons the action must be

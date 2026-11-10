@@ -34,6 +34,13 @@ public sealed class PaymentOptions
     public int PollIntervalSeconds { get; set; } = 3;
     public int PollTimeoutMinutes { get; set; } = 8;
 
+    /// <summary>
+    /// Spending mandate: purchases up to this amount skip KASPER's Final Review (PayPal still asks you).
+    /// 0 turns auto-approval off. Weekly cap limits the total auto-approved per rolling 7 days.
+    /// </summary>
+    public decimal AutoApproveUnder { get; set; }
+    public decimal AutoApproveWeeklyCap { get; set; } = 50.00m;
+
     /// <summary>Merchants KASPER may pay. Empty means "every merchant in the catalog".</summary>
     public List<string> AllowedMerchants { get; set; } = [];
 
@@ -42,7 +49,7 @@ public sealed class PaymentOptions
 }
 
 /// <summary>A seeded catalog product. Prices exist only here; the model can only pick an id.</summary>
-public sealed record Product(string Id, string Name, string Description, decimal Price, string Merchant, string Currency = "USD");
+public sealed record Product(string Id, string Name, string Description, decimal Price, string Merchant, string Currency = "USD", string? ImageUrl = null, string? Url = null);
 
 public interface ICatalog
 {
@@ -93,4 +100,29 @@ public interface IPayPalInvoices
 {
     Task<PayPalInvoiceDraft> CreateDraftAsync(string recipientEmail, string description, decimal amount, string currency, CancellationToken ct);
     Task SendAsync(string invoiceId, CancellationToken ct);
+    Task<PayPalInvoiceStatus> GetStatusAsync(string invoiceId, CancellationToken ct);
+    Task RemindAsync(string invoiceId, string note, CancellationToken ct);
+}
+
+public sealed record PayPalInvoiceStatus(string Status, decimal? DueAmount);
+
+/// <summary>Channel3 (live product search) settings. The key comes from user secrets or env vars only.</summary>
+public sealed class Channel3Options
+{
+    public const string Section = "Channel3";
+    public string ApiKey { get; set; } = "";
+    public string BaseUrl { get; set; } = "https://api.trychannel3.com";
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey);
+}
+
+/// <summary>Turns a product id from a plan (seeded id or quote id) into a priced product, in code.</summary>
+public interface IProductResolver
+{
+    Task<Product?> ResolveAsync(string productId, CancellationToken ct);
+}
+
+/// <summary>Searches for products and freezes each result as a quote so its price can't change or be invented.</summary>
+public interface IProductFinder
+{
+    Task<IReadOnlyList<Product>> FindAsync(string query, decimal? maxPrice, int take, CancellationToken ct);
 }

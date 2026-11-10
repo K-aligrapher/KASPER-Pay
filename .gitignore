@@ -19,3 +19,7 @@ appsettings.Local.json
 
 # TypeScript build cache
 *.tsbuildinfo
+
+# Local UI secrets (AG Grid trial key lives here, never committed)
+.env.local
+ui/.env.local

@@ -116,8 +116,9 @@ public sealed class PurchaseToolTests : IDisposable
 {
     private sealed class Clock : IClock { public DateTime UtcNow { get; set; } = new(2026, 11, 10, 15, 0, 0, DateTimeKind.Utc); }
 
-    private sealed class FakeCatalog(params Product[] products) : ICatalog
+    private sealed class FakeCatalog(params Product[] products) : ICatalog, IProductResolver
     {
+        public Task<Product?> ResolveAsync(string id, CancellationToken ct) => Task.FromResult(Find(id));
         public List<Product> Items { get; } = [.. products];
         public IReadOnlyList<Product> All => Items;
         public Product? Find(string id) => Items.FirstOrDefault(p => p.Id == id);
@@ -208,11 +209,11 @@ public sealed class PurchaseToolTests : IDisposable
     }
 
     [Fact]
-    public void Fingerprint_changes_when_the_catalog_price_changes()
+    public async Task Fingerprint_changes_when_the_catalog_price_changes()
     {
-        var a = ActionHasher.Compute("commerce.purchase", 1, Input("kb"), null, _tool.FingerprintExtras(Input("kb")));
+        var a = ActionHasher.Compute("commerce.purchase", 1, Input("kb"), null, await _tool.FingerprintExtrasAsync(Input("kb"), default));
         _catalog.Items[0] = _catalog.Items[0] with { Price = 1.00m };
-        var b = ActionHasher.Compute("commerce.purchase", 1, Input("kb"), null, _tool.FingerprintExtras(Input("kb")));
+        var b = ActionHasher.Compute("commerce.purchase", 1, Input("kb"), null, await _tool.FingerprintExtrasAsync(Input("kb"), default));
         Assert.NotEqual(a, b);
     }
 

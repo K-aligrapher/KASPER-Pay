@@ -36,6 +36,20 @@ public sealed class PayPalInvoicingService(
         return new PayPalInvoiceDraft(id, href);
     }
 
+    public async Task<PayPalInvoiceStatus> GetStatusAsync(string invoiceId, CancellationToken ct)
+    {
+        var json = await _api.SendAsync(HttpMethod.Get, $"/v2/invoicing/invoices/{Uri.EscapeDataString(invoiceId)}", null, null, ct);
+        var due = json["due_amount"]?["value"]?.GetValue<string>();
+        return new PayPalInvoiceStatus(json["status"]?.GetValue<string>() ?? "UNKNOWN", Money.TryParse(due, out var d) ? d : null);
+    }
+
+    public async Task RemindAsync(string invoiceId, string note, CancellationToken ct)
+    {
+        await _api.SendAsync(HttpMethod.Post, $"/v2/invoicing/invoices/{Uri.EscapeDataString(invoiceId)}/remind",
+            new JsonObject { ["subject"] = "Payment reminder", ["note"] = note, ["send_to_invoicer"] = false }, null, ct);
+        log.LogInformation("PayPal invoice {InvoiceId} reminder sent", invoiceId);
+    }
+
     public async Task SendAsync(string invoiceId, CancellationToken ct)
     {
         await _api.SendAsync(HttpMethod.Post, $"/v2/invoicing/invoices/{Uri.EscapeDataString(invoiceId)}/send",

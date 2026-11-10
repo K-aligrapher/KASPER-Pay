@@ -86,7 +86,7 @@ export function App() {
         </div>
         {route.view === "approvals" && <div className="view"><Approvals lastEvent={lastEvent} go={go} /></div>}
         {route.view === "history" && <div className="view"><History selected={route.param} lastEvent={lastEvent} go={go} /></div>}
-        {route.view === "payments" && <div className="view"><Payments lastEvent={lastEvent} /></div>}
+        {route.view === "payments" && <div className="view"><Payments lastEvent={lastEvent} go={go} /></div>}
         {route.view === "documents" && <div className="view"><Documents go={go} preload={route.param} /></div>}
         {route.view === "projects" && <div className="view"><Projects selected={route.param} go={go} /></div>}
         {route.view === "integrations" && <div className="view"><Integrations /></div>}

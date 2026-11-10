@@ -172,7 +172,10 @@ export const api2 = {
     call<ProjectTask>(`/api/projects/${projectId}/tasks/${id}`, { method: "PUT", body: JSON.stringify(edit) }),
   deleteTask: (projectId: string, id: string) => call<void>(`/api/projects/${projectId}/tasks/${id}`, { method: "DELETE" }),
   taskToNotion: (projectId: string, id: string) => post<ProjectTask>(`/api/projects/${projectId}/tasks/${id}/notion`),
-  payments: () => call<Payment[]>("/api/payments"),
+  payments: () => call<Payment[]>("/api/payments?take=200"),
+  refreshPayments: () => post<Payment[]>("/api/payments/refresh"),
+  receipts: () => call<Receipt[]>("/api/receipts"),
+  verifyReceipts: () => call<ChainStatus>("/api/receipts/verify"),
   guardrails: () => call<Guardrails>("/api/settings/guardrails"),
   setGuardrails: (g: Guardrails) => call<Guardrails>("/api/settings/guardrails", { method: "PUT", body: JSON.stringify(g) }),
   /** Object URL for a staged PDF/image (for Final Review), or null if it can't be previewed. */
@@ -187,8 +190,17 @@ export type Payment = {
   recipient: string | null; amount: number; currency: string; reason: string | null; blockedRule: string | null;
   blockedMessage: string | null; payPalOrderId: string | null; payPalCaptureId: string | null; payPalInvoiceId: string | null;
   failureSummary: string | null; createdAtUtc: string; updatedAtUtc: string;
+  invoiceState: string | null; autoApproved: boolean; receiptSeq: number | null; receiptHash: string | null;
 };
-export type Guardrails = { perTransactionLimit: number; dailyLimit: number; duplicateWindowMinutes: number; currency: string };
+export type Guardrails = {
+  perTransactionLimit: number; dailyLimit: number; duplicateWindowMinutes: number; currency: string;
+  autoApproveUnder: number; autoApproveWeeklyCap: number;
+};
+export type Receipt = {
+  seq: number; paymentId: string; kind: string; item: string; recipient: string | null; amount: string; currency: string;
+  status: string; payPalReference: string | null; prevHash: string; hash: string;
+};
+export type ChainStatus = { intact: boolean; count: number; brokenAtSeq: number | null; head: string | null };
 
 export type ProjectTask = { id: string; projectId: string; title: string; done: boolean; createdAtUtc: string; doneAtUtc: string | null; notionWorkflowId: string | null };
 

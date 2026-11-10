@@ -1,0 +1,80 @@
+{
+  "info": {
+    "name": "KASPER Pay: the PayPal sandbox calls KASPER makes",
+    "description": "Set the collection variables clientId and clientSecret to YOUR sandbox app credentials (never commit them). Run 'Get access token' first. Everything targets the PayPal sandbox.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://api-m.sandbox.paypal.com" },
+    { "key": "clientId", "value": "" },
+    { "key": "clientSecret", "value": "" },
+    { "key": "accessToken", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "invoiceId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Get access token (client credentials)",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.collectionVariables.set('accessToken', pm.response.json().access_token);"] } }],
+      "request": {
+        "method": "POST",
+        "auth": { "type": "basic", "basic": [{ "key": "username", "value": "{{clientId}}" }, { "key": "password", "value": "{{clientSecret}}" }] },
+        "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+        "body": { "mode": "urlencoded", "urlencoded": [{ "key": "grant_type", "value": "client_credentials" }] },
+        "url": "{{baseUrl}}/v1/oauth2/token"
+      }
+    },
+    {
+      "name": "2. Orders v2: create order (what commerce.purchase sends)",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.collectionVariables.set('orderId', pm.response.json().id);"] } }],
+      "request": {
+        "method": "POST",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+        "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "PayPal-Request-Id", "value": "{{$guid}}" }],
+        "body": { "mode": "raw", "raw": "{\n  \"intent\": \"CAPTURE\",\n  \"purchase_units\": [{\n    \"reference_id\": \"demo\",\n    \"amount\": { \"currency_code\": \"USD\", \"value\": \"24.99\", \"breakdown\": { \"item_total\": { \"currency_code\": \"USD\", \"value\": \"24.99\" } } },\n    \"items\": [{ \"name\": \"Wireless Mouse\", \"sku\": \"ms-wl-01\", \"quantity\": \"1\", \"unit_amount\": { \"currency_code\": \"USD\", \"value\": \"24.99\" } }]\n  }],\n  \"application_context\": { \"brand_name\": \"KASPER Pay\", \"user_action\": \"PAY_NOW\", \"shipping_preference\": \"NO_SHIPPING\" }\n}" },
+        "url": "{{baseUrl}}/v2/checkout/orders"
+      }
+    },
+    {
+      "name": "3. Orders v2: get order (KASPER polls this until APPROVED)",
+      "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] }, "url": "{{baseUrl}}/v2/checkout/orders/{{orderId}}" }
+    },
+    {
+      "name": "4. Orders v2: capture (only after the buyer approved; same PayPal-Request-Id = never charged twice)",
+      "request": {
+        "method": "POST",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+        "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "PayPal-Request-Id", "value": "capture-{{orderId}}" }],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": "{{baseUrl}}/v2/checkout/orders/{{orderId}}/capture"
+      }
+    },
+    {
+      "name": "5. Invoicing v2: next invoice number",
+      "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{}" }, "url": "{{baseUrl}}/v2/invoicing/generate-next-invoice-number" }
+    },
+    {
+      "name": "6. Invoicing v2: create draft",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.collectionVariables.set('invoiceId', pm.response.json().href.split('/').pop());"] } }],
+      "request": {
+        "method": "POST",
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] },
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"detail\": { \"invoice_number\": \"{{$timestamp}}\", \"currency_code\": \"USD\", \"note\": \"Sent with KASPER Pay\" },\n  \"primary_recipients\": [{ \"billing_info\": { \"email_address\": \"buyer@example.com\" } }],\n  \"items\": [{ \"name\": \"Logo design\", \"quantity\": \"1\", \"unit_amount\": { \"currency_code\": \"USD\", \"value\": \"200.00\" } }]\n}" },
+        "url": "{{baseUrl}}/v2/invoicing/invoices"
+      }
+    },
+    {
+      "name": "7. Invoicing v2: send (KASPER only does this after Final Review)",
+      "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"send_to_recipient\": true, \"send_to_invoicer\": false }" }, "url": "{{baseUrl}}/v2/invoicing/invoices/{{invoiceId}}/send" }
+    },
+    {
+      "name": "8. Invoicing v2: get invoice status (paid or open?)",
+      "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] }, "url": "{{baseUrl}}/v2/invoicing/invoices/{{invoiceId}}" }
+    },
+    {
+      "name": "9. Invoicing v2: remind (KASPER only after Final Review, at most once per 24 h)",
+      "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"subject\": \"Payment reminder\", \"note\": \"A friendly reminder that your invoice is still open. Thank you!\", \"send_to_invoicer\": false }" }, "url": "{{baseUrl}}/v2/invoicing/invoices/{{invoiceId}}/remind" }
+    }
+  ]
+}

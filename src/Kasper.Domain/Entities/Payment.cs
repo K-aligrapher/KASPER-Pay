@@ -19,6 +19,15 @@ public sealed class Payment
     public string Kind { get; private set; } = "purchase";
     public string? Recipient { get; private set; }
     public string? PayPalInvoiceId { get; private set; }
+    /// <summary>Last known PayPal invoice state (SENT, PAID, CANCELLED, ...).</summary>
+    public string? InvoiceState { get; private set; }
+    public DateTime? InvoiceCheckedAtUtc { get; private set; }
+    public DateTime? LastReminderAtUtc { get; private set; }
+    /// <summary>True when KASPER auto-approved this purchase under your spending mandate.</summary>
+    public bool AutoApproved { get; private set; }
+    public long? ReceiptSeq { get; private set; }
+    public string? ReceiptHash { get; private set; }
+    public string? PrevReceiptHash { get; private set; }
     public string ProductId { get; private set; } = "";
     public string ProductName { get; private set; } = "";
     public string Merchant { get; private set; } = "";
@@ -109,6 +118,24 @@ public sealed class Payment
         TransitionTo(PaymentStatus.CheckoutCreated, nowUtc);
         PayPalOrderId = orderId;
         ApproveUrl = approveUrl;
+    }
+
+    public void MarkAutoApproved() => AutoApproved = true;
+
+    public void RecordInvoiceState(string state, DateTime nowUtc)
+    {
+        InvoiceState = state;
+        InvoiceCheckedAtUtc = nowUtc;
+    }
+
+    public void RecordReminder(DateTime nowUtc) => LastReminderAtUtc = nowUtc;
+
+    public void Seal(long seq, string prevHash, string hash)
+    {
+        if (ReceiptHash is not null) throw new InvalidOperationException("Already sealed.");
+        ReceiptSeq = seq;
+        PrevReceiptHash = prevHash;
+        ReceiptHash = hash;
     }
 
     public void AttachInvoice(string invoiceId) => PayPalInvoiceId = invoiceId;

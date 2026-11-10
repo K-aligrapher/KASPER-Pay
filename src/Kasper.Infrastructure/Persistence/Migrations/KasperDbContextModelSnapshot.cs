@@ -219,6 +219,9 @@ namespace Kasper.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("AutoApproved")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("BlockedMessage")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
@@ -244,9 +247,19 @@ namespace Kasper.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("InvoiceCheckedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InvoiceState")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastReminderAtUtc")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Merchant")
@@ -266,6 +279,10 @@ namespace Kasper.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PrevReceiptHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ProductId")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -282,6 +299,13 @@ namespace Kasper.Infrastructure.Persistence.Migrations
                     b.Property<string>("Reason")
                         .HasMaxLength(300)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("ReceiptHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ReceiptSeq")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Recipient")
                         .HasMaxLength(320)
@@ -308,12 +332,71 @@ namespace Kasper.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedAtUtc");
 
+                    b.HasIndex("ReceiptSeq")
+                        .IsUnique();
+
                     b.HasIndex("Status");
 
                     b.HasIndex("StepId")
                         .IsUnique();
 
                     b.ToTable("Payments");
+                });
+
+            modelBuilder.Entity("Kasper.Domain.Entities.ProductQuote", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Brand")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Merchant")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceProductId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.ToTable("Quotes");
                 });
 
             modelBuilder.Entity("Kasper.Domain.Entities.Project", b =>

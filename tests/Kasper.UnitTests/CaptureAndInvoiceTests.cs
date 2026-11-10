@@ -16,8 +16,9 @@ public sealed class CaptureAndInvoiceTests : IDisposable
 {
     private sealed class Clock : IClock { public DateTime UtcNow { get; set; } = new(2026, 11, 10, 15, 0, 0, DateTimeKind.Utc); }
     private sealed class Opts<T>(T v) : IOptionsMonitor<T> { public T CurrentValue => v; public T Get(string? n) => v; public IDisposable? OnChange(Action<T, string?> l) => null; }
-    private sealed class Catalog : ICatalog
+    private sealed class Catalog : ICatalog, IProductResolver
     {
+        public Task<Product?> ResolveAsync(string id, CancellationToken ct) => Task.FromResult(Find(id));
         public IReadOnlyList<Product> All { get; } = [new("kb", "Keyboard", "", 79.99m, "Shop")];
         public Product? Find(string id) => All.FirstOrDefault(p => p.Id == id);
     }
@@ -39,6 +40,10 @@ public sealed class CaptureAndInvoiceTests : IDisposable
         public Task<PayPalInvoiceDraft> CreateDraftAsync(string e, string d, decimal a, string c, CancellationToken ct)
         { Drafts++; return Task.FromResult(new PayPalInvoiceDraft("INV-1", null)); }
         public Task SendAsync(string id, CancellationToken ct) { Sends++; return Task.CompletedTask; }
+        public string Status = "SENT";
+        public int Reminders;
+        public Task<PayPalInvoiceStatus> GetStatusAsync(string id, CancellationToken ct) => Task.FromResult(new PayPalInvoiceStatus(Status, null));
+        public Task RemindAsync(string id, string note, CancellationToken ct) { Reminders++; return Task.CompletedTask; }
     }
 
     private readonly SqliteConnection _conn = new("DataSource=:memory:");

@@ -50,12 +50,12 @@ public sealed class InvoiceTool(
         Money.TryParse(Input.OptStr(input, "amount")?.Trim().TrimStart('$'), out var a) && a > 0 && a <= MaxAmount
             ? decimal.Round(a, 2) : null;
 
-    public JsonObject? FingerprintExtras(JsonObject input) => new()
+    public Task<JsonObject?> FingerprintExtrasAsync(JsonObject input, CancellationToken ct) => Task.FromResult<JsonObject?>(new JsonObject
     {
         ["recipient"] = Email(input) ?? "invalid",
         ["amount"] = Amount(input) is { } a ? Money.Format(a) : "invalid",
         ["currency"] = options.CurrentValue.Currency,
-    };
+    });
 
     public async Task<IReadOnlyList<ScreenViolation>> ScreenAsync(JsonObject input, CancellationToken ct)
     {
@@ -107,7 +107,7 @@ public sealed class InvoiceTool(
         if (email is null || amount is null)
             throw new ToolException(v.FirstOrDefault()?.Rule ?? "invalid_invoice", v.FirstOrDefault()?.Message ?? "Invalid invoice.", ErrorCategory.Validation);
         var description = Input.Str(input, "description");
-        var fingerprint = ActionHasher.Compute(Descriptor.Id, Descriptor.Version, input, null, FingerprintExtras(input));
+        var fingerprint = ActionHasher.Compute(Descriptor.Id, Descriptor.Version, input, null, await FingerprintExtrasAsync(input, ct));
 
         var payment = await db.Payments.FirstOrDefaultAsync(p => p.StepId == context.StepId, ct);
         if (payment is null)
@@ -123,6 +123,10 @@ public sealed class InvoiceTool(
 
         var total = Money.Format(amount.Value);
         var warnings = new List<string> { "Nothing is sent yet. The invoice is created and emailed by PayPal only after you approve." };
+        var past = await db.Payments.AsNoTracking().Where(p => p.Kind == "invoice" && p.Status == PaymentStatus.Sent).ToListAsync(ct);
+        if (!past.Any(p => p.Recipient == email)) warnings.Add($"Heads-up: you have never invoiced {email} before.");
+        if (past.Count >= 3 && amount.Value > 3 * past.Average(p => p.Amount))
+            warnings.Add($"Heads-up: this is more than 3× your usual invoice (about ${Money.Format(past.Average(p => p.Amount))}).");
         warnings.AddRange(v.Select(x => $"Blocked by {x.Rule}: {x.Message}"));
         return new ToolPreview($"Invoice {email} for {total} USD", $"PayPal Invoicing › {email}",
             [new("To", email), new("For", description), new("Total", $"{total} {options.CurrentValue.Currency}"), new("Sent with", "PayPal Invoicing (sandbox)")],
@@ -137,7 +141,7 @@ public sealed class InvoiceTool(
             throw new ToolException("invalid_invoice", "The invoice details are not valid.", ErrorCategory.Validation);
         var description = Input.Str(input, "description");
         var now = clock.UtcNow;
-        var fingerprint = ActionHasher.Compute(Descriptor.Id, Descriptor.Version, input, null, FingerprintExtras(input));
+        var fingerprint = ActionHasher.Compute(Descriptor.Id, Descriptor.Version, input, null, await FingerprintExtrasAsync(input, ct));
 
         var payment = await db.Payments.FirstOrDefaultAsync(p => p.StepId == context.StepId, ct)
             ?? Payment.ProposeInvoice(context.WorkflowId, context.StepId, email, description, amount.Value, options.CurrentValue.Currency, fingerprint, now);
@@ -168,7 +172,9 @@ public sealed class InvoiceTool(
             }
             await invoices.SendAsync(payment.PayPalInvoiceId!, ct);
             payment.Sent(payment.PayPalInvoiceId!, clock.UtcNow);
+            payment.RecordInvoiceState("SENT", clock.UtcNow);
             await db.SaveChangesAsync(CancellationToken.None);
+            await ReceiptChain.SealAsync(db, payment, CancellationToken.None);
             return Result(payment);
         }
         catch (ToolException ex)

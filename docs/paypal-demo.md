@@ -11,11 +11,17 @@ Before recording: Ollama running, sandbox credentials set, sandbox buyer account
 5. **(1:50)** Type: *invoice alex@example.com $200 for logo design*. Approve in Final Review. Show the invoice in the PayPal sandbox.
 6. **(2:25)** Show Payments history and spending limits. Close: "The model proposes. Code checks. You approve twice. Only then does money move."
 
+## Extra beats if time allows (each about 15 seconds)
+- *split the $84 dinner between three emails*: one review card, three invoices, then show "who has paid".
+- *who hasn't paid me yet?* then *remind alex@example.com*: show the reminder in Final Review.
+- Turn on the mandate (Payments → Spending rules → auto-approve under $5), ask for something cheap: no KASPER card, PayPal still asks.
+- Payments → **Verify now**: "Chain intact".
+
 ## Devpost text
 
 **Inspiration.** AI agents that can pay are useful and scary. We wanted one that is useful because it is *constrained*.
 
-**What it does.** KASPER Pay adds PayPal to KASPER, a local-first AI coworker. Ask for a purchase or an invoice in plain language. A local model (Qwen via Ollama) proposes the action. Code validates it against the catalog and your spending rules. You approve it in KASPER's Final Review, then approve again in PayPal. Only then does KASPER capture the payment and record it.
+**What it does.** Built for freelancers and small groups who send invoices and chase payments: invoice, split a bill, see who has paid, send approved reminders, or buy a product, all by typing what you want. KASPER Pay adds PayPal to KASPER, a local-first AI coworker. Ask for a purchase or an invoice in plain language. A local model (Qwen via Ollama) proposes the action. Code validates it against the catalog and your spending rules. You approve it in KASPER's Final Review, then approve again in PayPal. Only then does KASPER capture the payment and record it.
 
 **How we built it.** .NET 10 + SQLite + a React UI. PayPal Orders v2 (create, poll, capture, verify) and Invoicing v2 (draft, send). The model only names a catalog product id; amounts come from code and are bound into an approval fingerprint, so any change after approval invalidates it. Guardrails (per-purchase and daily limits, duplicate window, allow-lists) run in code before and after approval. Idempotency keys make double clicks and restarts safe.
 
@@ -27,4 +33,4 @@ Before recording: Ollama running, sandbox credentials set, sandbox buyer account
 
 **Data boundary.** The model, chat and history stay on the machine. Only the item name, SKU, amount, currency and (for invoices) recipient email and description go to PayPal. Credentials never reach the model, UI or repo. Sandbox only.
 
-**Built with.** .NET, ASP.NET Core, EF Core/SQLite, React, Ollama (Qwen), PayPal Orders v2, PayPal Invoicing v2.
+**Built with.** .NET, ASP.NET Core, EF Core/SQLite, React, Ollama (Qwen), PayPal Orders v2, PayPal Invoicing v2 (create, send, status, remind), Channel3 (live product search), AG Grid and AG Charts (Payments screen), Postman collection.

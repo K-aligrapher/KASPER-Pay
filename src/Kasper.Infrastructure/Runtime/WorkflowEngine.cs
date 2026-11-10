@@ -144,6 +144,12 @@ public sealed class WorkflowEngine(
                 return Gate.Wait;
         }
 
+        if (await tool.TryAutoApproveAsync(resolved, ct) is { } mandate)
+        {
+            Audit.Add(db, now, System, "approval.auto", "mandate", wf.Id, step.Id, mandate);
+            return Gate.Proceed;
+        }
+
         await RequestApprovalsAsync(wf, step, steps, approvals, ct);
         return Gate.Wait;
     }
@@ -325,7 +331,7 @@ public sealed class WorkflowEngine(
                 }
             }
         }
-        return ActionHasher.Compute(d.Id, d.Version, resolved, fileHashes, tool.FingerprintExtras(resolved));
+        return ActionHasher.Compute(d.Id, d.Version, resolved, fileHashes, await tool.FingerprintExtrasAsync(resolved, ct));
     }
 
     internal static List<Approval> LatestPerStep(IEnumerable<Approval> approvals) =>

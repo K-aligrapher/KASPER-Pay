@@ -19,6 +19,13 @@ public static class PaymentEndpoints
         app.MapGet("/api/payments/{id:guid}", async (Guid id, PaymentService svc, CancellationToken ct) =>
             await svc.GetAsync(id, ct) is { } p ? Results.Ok(p) : Results.NotFound());
 
+        app.MapPost("/api/payments/refresh", async (PaymentService svc, CancellationToken ct) =>
+            Results.Ok(await svc.RefreshInvoicesAsync(ct)));
+
+        app.MapGet("/api/receipts", async (PaymentService svc, CancellationToken ct) => Results.Ok(await svc.ReceiptsAsync(ct)));
+
+        app.MapGet("/api/receipts/verify", async (PaymentService svc, CancellationToken ct) => Results.Ok(await svc.VerifyReceiptsAsync(ct)));
+
         app.MapGet("/api/settings/guardrails", (PaymentService svc) => Results.Ok(svc.Guardrails()));
 
         app.MapPut("/api/settings/guardrails", async (GuardrailsDto dto, PaymentService svc, CancellationToken ct) =>
