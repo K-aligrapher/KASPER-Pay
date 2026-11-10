@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <UserSecretsId>kasper-pay-3f6c1d52-9a7e-4b0e-8c2f-5d1a7e9b4c10</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

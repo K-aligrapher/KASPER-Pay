@@ -55,6 +55,7 @@ public sealed class KasperApiHost : IAsyncDisposable
         builder.Configuration.Sources.Clear();
         builder.Configuration
             .AddJsonFile(KasperPaths.SettingsFile, optional: true, reloadOnChange: true)
+            .AddUserSecrets(typeof(KasperApiHost).Assembly, optional: true, reloadOnChange: false) // PayPal:ClientId / PayPal:ClientSecret
             .AddEnvironmentVariables("KASPER__");
 
         builder.WebHost.ConfigureKestrel(k =>

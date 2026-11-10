@@ -1,5 +1,6 @@
 using Kasper.Application;
 using Kasper.Application.Abstractions;
+using Kasper.Application.Commerce;
 using Kasper.Application.Options;
 using Kasper.Application.Planning;
 using Kasper.Application.Tools;
@@ -53,6 +54,17 @@ public static class DependencyInjection
         services.AddSingleton<Mcp.IToolSource>(sp => sp.GetRequiredService<Mcp.McpHub>());
         services.AddHostedService(sp => sp.GetRequiredService<Mcp.McpHub>());
         services.AddHttpClient<Notion.NotionClient>(c => c.Timeout = TimeSpan.FromSeconds(40));
+
+        // PayPal + commerce (sandbox by default; credentials come from user secrets / env vars only)
+        services.Configure<PayPalOptions>(config.GetSection(PayPalOptions.Section));
+        services.Configure<PaymentOptions>(config.GetSection(PaymentOptions.Section));
+        services.AddSingleton<ICatalog, Commerce.SeedCatalog>();
+        // Singleton so the cached access token is shared by every request.
+        services.AddSingleton(sp => new PayPal.PayPalTokenProvider(
+            new HttpClient { Timeout = TimeSpan.FromSeconds(30) },
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<PayPalOptions>>(),
+            sp.GetRequiredService<IClock>()));
+        services.AddHttpClient<IPayPalOrders, PayPal.PayPalOrdersService>(c => c.Timeout = TimeSpan.FromSeconds(30));
 
         // Tools (only these can ever run)
         services.AddScoped<ITool, GenerateTextTool>();
