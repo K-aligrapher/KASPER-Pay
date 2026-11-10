@@ -167,6 +167,10 @@ public sealed class OllamaPlanner(
             {"reply": "I'll set up the purchase. You approve it here first, then again in PayPal.", "summary": "Buy a wireless mouse with PayPal", "steps": [
               {"id": "s1", "tool": "commerce.purchase", "purpose": "Buy the mouse", "input": {"productId": "ms-wl-01", "reason": "Cheapest wireless mouse in the catalog."}}]}
 
+            Example. User: "invoice alex@example.com $200 for logo design"
+            {"reply": "I'll draft the invoice. Nothing is sent until you approve it.", "summary": "Invoice alex@example.com $200 for logo design", "steps": [
+              {"id": "s1", "tool": "commerce.invoice", "purpose": "Send the invoice", "input": {"recipient": "alex@example.com", "amount": "200", "description": "Logo design"}}]}
+
             Example. User: "what's a good name for a cat?"
             {"reply": "How about Miso, Pixel or Juniper?", "summary": "", "steps": []}
             """);

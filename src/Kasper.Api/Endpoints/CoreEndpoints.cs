@@ -59,7 +59,7 @@ internal static class CoreEndpoints
         {
             // Only known views (and documents/<upload ids>) can be opened this way.
             var safeRoute = route is not null && System.Text.RegularExpressions.Regex.IsMatch(route,
-                "^(home|approvals|history|settings|projects|integrations|documents(/[0-9a-f]{32}(,[0-9a-f]{32}){0,29})?)$") ? route : null;
+                "^(home|approvals|history|payments|settings|projects|integrations|documents(/[0-9a-f]{32}(,[0-9a-f]{32}){0,29})?)$") ? route : null;
             shell.ShowMainWindow(safeRoute);
             return Results.NoContent();
         });

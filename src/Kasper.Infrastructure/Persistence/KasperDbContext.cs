@@ -144,6 +144,9 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
             e.HasIndex(x => x.CreatedAtUtc);
             e.HasIndex(x => x.Status);
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.Kind).HasMaxLength(16);
+            e.Property(x => x.Recipient).HasMaxLength(320);
+            e.Property(x => x.PayPalInvoiceId).HasMaxLength(64);
             e.Property(x => x.ProductId).HasMaxLength(64);
             e.Property(x => x.ProductName).HasMaxLength(200);
             e.Property(x => x.Merchant).HasMaxLength(200);

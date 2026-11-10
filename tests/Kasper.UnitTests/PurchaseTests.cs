@@ -126,13 +126,21 @@ public sealed class PurchaseToolTests : IDisposable
     private sealed class FakePayPal : IPayPalOrders
     {
         public int Created;
+        private readonly Dictionary<string, decimal> _amounts = [];
         public Task<PayPalOrder> CreateOrderAsync(string requestId, string referenceId, Product product, int quantity, CancellationToken ct)
         {
             Created++;
+            _amounts["ORDER-" + Created] = product.Price * quantity;
             return Task.FromResult(new PayPalOrder("ORDER-" + Created, "PAYER_ACTION_REQUIRED", "https://sandbox.paypal.com/checkoutnow?token=T", "USD", product.Price * quantity));
         }
-        public Task<PayPalOrder> GetOrderAsync(string orderId, CancellationToken ct) => throw new NotSupportedException();
-        public Task<PayPalCapture> CaptureAsync(string orderId, string requestId, CancellationToken ct) => throw new NotSupportedException();
+        public int Captures;
+        public Task<PayPalOrder> GetOrderAsync(string orderId, CancellationToken ct) =>
+            Task.FromResult(new PayPalOrder(orderId, "APPROVED", null, "USD", null));
+        public Task<PayPalCapture> CaptureAsync(string orderId, string requestId, CancellationToken ct)
+        {
+            Captures++;
+            return Task.FromResult(new PayPalCapture(orderId, "COMPLETED", "CAP-1", "USD", _amounts[orderId]));
+        }
     }
 
     private sealed class FakeBrowser : IBrowserLauncher { public List<string> Opened { get; } = []; public void Open(string url) => Opened.Add(url); }
@@ -160,7 +168,7 @@ public sealed class PurchaseToolTests : IDisposable
         _db = new KasperDbContext(new DbContextOptionsBuilder<KasperDbContext>().UseSqlite(_conn).Options);
         _db.Database.EnsureCreated();
         _tool = new PurchaseTool(_catalog, _paypal, _browser, _db, _clock,
-            new StaticOptions(new PaymentOptions()), NullLogger<PurchaseTool>.Instance);
+            new StaticOptions(new PaymentOptions { PollIntervalSeconds = 0, PollTimeoutMinutes = 1 }), NullLogger<PurchaseTool>.Instance);
     }
 
     public void Dispose() { _db.Dispose(); _conn.Dispose(); }
@@ -235,8 +243,9 @@ public sealed class PurchaseToolTests : IDisposable
         Assert.Equal("ORDER-1", (string?)first.Output["orderId"]);
         Assert.Equal("ORDER-1", (string?)second.Output["orderId"]);
         var row = await _db.Payments.SingleAsync();
-        Assert.Equal(PaymentStatus.CheckoutCreated, row.Status);
+        Assert.Equal(PaymentStatus.Captured, row.Status);
         Assert.Equal("ORDER-1", row.PayPalOrderId);
+        Assert.Equal(1, _paypal.Captures); // the replay must not capture again
     }
 
     [Fact]

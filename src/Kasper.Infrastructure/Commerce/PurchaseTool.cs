@@ -143,7 +143,9 @@ public sealed class PurchaseTool(
 
         // Replays must never create a second order (F13).
         if (payment.PayPalOrderId is not null)
-            return Result(payment);
+            return payment.Status is PaymentStatus.CheckoutCreated or PaymentStatus.PayerApproved
+                ? await FinishAsync(payment, product, ct) // resume after a restart
+                : Result(payment);
 
         // The amount in the approved fingerprint must still be what the catalog says.
         var expected = ActionHasher.Compute(Descriptor.Id, Descriptor.Version, input, null, FingerprintExtras(input));
@@ -173,12 +175,60 @@ public sealed class PurchaseTool(
                 try { browser.Open(order.ApproveUrl); }
                 catch (Exception ex) { log.LogWarning(ex, "Could not open the PayPal page for order {OrderId}", order.Id); }
             }
-            return Result(payment);
+            return await FinishAsync(payment, product, ct);
         }
-        catch (ToolException ex)
+        catch (ToolException ex) when (payment.Status == PaymentStatus.Approved)
         {
             payment.Fail(ex.Message, clock.UtcNow);
             await db.SaveChangesAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    /// <summary>Waits for the buyer to approve in PayPal, then captures once and verifies the result (F8).</summary>
+    private async Task<ToolResult> FinishAsync(Payment payment, Product product, CancellationToken ct)
+    {
+        var o = options.CurrentValue;
+        var deadline = clock.UtcNow.AddMinutes(o.PollTimeoutMinutes);
+        try
+        {
+            while (payment.Status == PaymentStatus.CheckoutCreated)
+            {
+                var order = await paypal.GetOrderAsync(payment.PayPalOrderId!, ct);
+                if (order.Status == "APPROVED")
+                {
+                    payment.TransitionTo(PaymentStatus.PayerApproved, clock.UtcNow);
+                    await db.SaveChangesAsync(CancellationToken.None);
+                }
+                else if (order.Status is "COMPLETED")
+                    break; // captured earlier; verify below via an idempotent capture call
+                else if (order.Status is "VOIDED" || clock.UtcNow >= deadline)
+                {
+                    payment.TransitionTo(order.Status == "VOIDED" ? PaymentStatus.Cancelled : PaymentStatus.Expired, clock.UtcNow);
+                    await db.SaveChangesAsync(CancellationToken.None);
+                    throw new ToolException("payment_not_approved", "The PayPal payment was not approved. Nothing was charged.", ErrorCategory.Permanent);
+                }
+                else await Task.Delay(TimeSpan.FromSeconds(o.PollIntervalSeconds), ct);
+            }
+
+            // Same request id every time: PayPal returns the same capture instead of charging twice.
+            var cap = await paypal.CaptureAsync(payment.PayPalOrderId!, "cap-" + payment.Id.ToString("N"), ct);
+            var expected = Money.Format(payment.Amount);
+            if (cap.Status != "COMPLETED" || cap.CurrencyCode != payment.Currency || cap.Amount is not { } paid || Money.Format(paid) != expected)
+            {
+                payment.Fail($"PayPal capture did not match the approved purchase (status {cap.Status}).", clock.UtcNow);
+                await db.SaveChangesAsync(CancellationToken.None);
+                throw new ToolException("capture_mismatch", "PayPal's capture did not match what you approved. Check your PayPal account.", ErrorCategory.Permanent);
+            }
+            if (payment.Status == PaymentStatus.CheckoutCreated) payment.TransitionTo(PaymentStatus.PayerApproved, clock.UtcNow);
+            payment.Captured(cap.CaptureId, clock.UtcNow);
+            await db.SaveChangesAsync(CancellationToken.None);
+            log.LogInformation("Payment {PaymentId} captured for order {OrderId}", payment.Id, payment.PayPalOrderId);
+            return Result(payment);
+        }
+        catch (OperationCanceledException) when (payment.Status is PaymentStatus.CheckoutCreated or PaymentStatus.PayerApproved)
+        {
+            // Cancelled by the user or timed out: leave PayPal as is; a later retry can resume.
             throw;
         }
     }

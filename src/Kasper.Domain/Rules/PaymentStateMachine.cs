@@ -8,10 +8,11 @@ public static class PaymentStateMachine
     private static readonly Dictionary<PaymentStatus, PaymentStatus[]> Allowed = new()
     {
         [PaymentStatus.Proposed] = [PaymentStatus.Approved, PaymentStatus.Rejected, PaymentStatus.Blocked, PaymentStatus.Expired, PaymentStatus.Cancelled],
-        [PaymentStatus.Approved] = [PaymentStatus.CheckoutCreated, PaymentStatus.Blocked, PaymentStatus.Cancelled, PaymentStatus.Expired, PaymentStatus.Failed],
+        [PaymentStatus.Approved] = [PaymentStatus.CheckoutCreated, PaymentStatus.Sent, PaymentStatus.Blocked, PaymentStatus.Cancelled, PaymentStatus.Expired, PaymentStatus.Failed],
         [PaymentStatus.CheckoutCreated] = [PaymentStatus.PayerApproved, PaymentStatus.Cancelled, PaymentStatus.Expired, PaymentStatus.Failed],
         [PaymentStatus.PayerApproved] = [PaymentStatus.Captured, PaymentStatus.Failed, PaymentStatus.Expired],
         [PaymentStatus.Captured] = [],
+        [PaymentStatus.Sent] = [],
         [PaymentStatus.Rejected] = [],
         [PaymentStatus.Blocked] = [],
         [PaymentStatus.Cancelled] = [],

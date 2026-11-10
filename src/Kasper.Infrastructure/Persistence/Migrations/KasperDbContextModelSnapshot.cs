@@ -244,12 +244,21 @@ namespace Kasper.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Merchant")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("PayPalCaptureId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PayPalInvoiceId")
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
@@ -272,6 +281,10 @@ namespace Kasper.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Reason")
                         .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Recipient")
+                        .HasMaxLength(320)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Status")

@@ -66,6 +66,7 @@ public static class DependencyInjection
             sp.GetRequiredService<IClock>()));
         services.AddHttpClient<IPayPalOrders, PayPal.PayPalOrdersService>(c => c.Timeout = TimeSpan.FromSeconds(30));
 
+        services.AddHttpClient<IPayPalInvoices, PayPal.PayPalInvoicingService>(c => c.Timeout = TimeSpan.FromSeconds(30));
         services.AddSingleton<IBrowserLauncher, Commerce.BrowserLauncher>();
 
         // Tools (only these can ever run)
@@ -97,6 +98,8 @@ public static class DependencyInjection
         services.AddScoped<ITool, NotionSearchTool>();
         services.AddScoped<ITool, NotionCreateTaskTool>();
         services.AddScoped<ITool, Commerce.PurchaseTool>();
+        services.AddScoped<ITool, Commerce.InvoiceTool>();
+        services.AddScoped<Commerce.PaymentService>();
         services.AddScoped<ITool, MockEchoTool>();
         services.AddScoped<ITool, MockFlakyTool>();
         services.AddScoped<ITool, MockSlowTool>();

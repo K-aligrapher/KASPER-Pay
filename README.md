@@ -16,6 +16,43 @@
 | **Documents:** drag & drop to convert (Office, PDF, Markdown, HTML, EPUB…), merge, pick pages, rotate, compress, images → PDF | |
 | **Notion:** connect in Integrations; ask *"add a Notion task to …"*; KASPER shows the task before creating it | |
 
+## KASPER Pay (PayPal AI Hackathon 2026)
+
+KASPER can now **buy from a demo catalog and send invoices through PayPal, but never spends money without your approval.**
+Ask *"buy me a mechanical keyboard under $100"* or *"invoice alex@example.com $200 for logo design"*.
+
+```text
+You ask → local model (Qwen via Ollama) proposes a product id / invoice details
+        → code checks the catalog price and your spending rules (Blocked if broken)
+        → Final Review in KASPER (approval is bound to a fingerprint of item, amount, currency, recipient)
+        → PayPal Orders v2 order is created and the PayPal page opens
+        → you approve again inside PayPal → KASPER polls, captures once, verifies amount and currency
+        → recorded in Payments / History
+```
+
+**Safety model**
+- The model only names a catalog product id (or invoice details). It never decides prices or totals, never calls PayPal, never sees credentials.
+- Guardrails run in code, both when the request is made and again just before PayPal is called: per-purchase limit, daily limit, duplicate-purchase window, optional merchant and recipient allow-lists, USD only. A broken rule shows as **Blocked** with its name, and nothing is created in PayPal.
+- Change the amount, item, currency or recipient after approving and the approval is invalid. A mismatching capture is marked Failed.
+- Replays are safe: one payment row per step, PayPal request ids on create and capture, and an invoice is sent at most once.
+- Sandbox only. No real money.
+
+**Data boundary (exact).** Everything stays on this machine (model, chat, files, history, database) **except**, when you approve a purchase or invoice, what PayPal needs: item name, SKU, amount, currency and, for invoices, the recipient email and description. Your PayPal Client ID and Secret are read from user secrets or environment variables, are only sent to PayPal in the auth header, and are never given to the model, the UI, logs or the repo.
+
+**Setup in 5 steps**
+1. Install .NET 10 SDK, Node.js and [Ollama](https://ollama.com) (`ollama pull qwen3:8b`).
+2. Create a PayPal sandbox app and a sandbox buyer account at developer.paypal.com.
+3. Set the app credentials (see `.env.example`):
+   ```powershell
+   dotnet user-secrets set "PayPal:ClientId" "<sandbox client id>" --project src/Kasper.Api
+   dotnet user-secrets set "PayPal:ClientSecret" "<sandbox secret>" --project src/Kasper.Api
+   dotnet user-secrets set "PayPal:Environment" "sandbox" --project src/Kasper.Api
+   ```
+4. Build and run: `cd ui; npm ci; npm run build; cd ..; dotnet run --project src/Kasper.Desktop` (or use `install.ps1`).
+5. Ask KASPER to buy something, approve it, then log in as the sandbox buyer in the PayPal page that opens.
+
+Limits are editable on the **Payments** screen. More: [demo script and Devpost text](docs/paypal-demo.md).
+
 ## How Final Review works
 
 1. You ask: *"write a packing list for a weekend trip and save it as packing.md"*.
@@ -91,7 +128,7 @@ tests/Kasper.UnitTests     domain, adapter and API tests
 - The API listens on `127.0.0.1` only, needs a random token that changes every launch, and rejects non-loopback `Host` headers.
 - The token is kept in `session.json`, which only your Windows user can read, and is never logged.
 - Only `user`/`assistant` messages are accepted; KASPER's system prompt can't be replaced by callers.
-- Nothing is sent to the cloud: the model runs in Ollama on your machine.
+- The AI model runs in Ollama on your machine and never sees credentials. Only what a PayPal order or invoice needs leaves the machine (see "KASPER Pay" above).
 
 ## Document engines
 

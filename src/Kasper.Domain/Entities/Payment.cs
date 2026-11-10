@@ -15,6 +15,10 @@ public sealed class Payment
     public Guid? WorkflowId { get; private set; }
     /// <summary>Unique when set: the idempotency anchor for double clicks and restarts.</summary>
     public Guid? StepId { get; private set; }
+    /// <summary>"purchase" or "invoice".</summary>
+    public string Kind { get; private set; } = "purchase";
+    public string? Recipient { get; private set; }
+    public string? PayPalInvoiceId { get; private set; }
     public string ProductId { get; private set; } = "";
     public string ProductName { get; private set; } = "";
     public string Merchant { get; private set; } = "";
@@ -55,6 +59,22 @@ public sealed class Payment
         UpdatedAtUtc = nowUtc,
     };
 
+    public static Payment ProposeInvoice(Guid? workflowId, Guid? stepId, string recipient, string description, decimal amount,
+        string currency, string fingerprint, DateTime nowUtc)
+    {
+        var p = Propose(workflowId, stepId, "invoice", description.Length > 200 ? description[..200] : description,
+            "PayPal Invoicing", 1, amount, currency, null, fingerprint, nowUtc);
+        p.Kind = "invoice";
+        p.Recipient = recipient;
+        return p;
+    }
+
+    public void Sent(string invoiceId, DateTime nowUtc)
+    {
+        TransitionTo(PaymentStatus.Sent, nowUtc);
+        PayPalInvoiceId = invoiceId;
+    }
+
     /// <summary>Re-propose after the action changed (new fingerprint). Only valid while still Proposed.</summary>
     public void Refresh(string fingerprint, DateTime nowUtc)
     {
@@ -90,6 +110,8 @@ public sealed class Payment
         PayPalOrderId = orderId;
         ApproveUrl = approveUrl;
     }
+
+    public void AttachInvoice(string invoiceId) => PayPalInvoiceId = invoiceId;
 
     public void Captured(string? captureId, DateTime nowUtc)
     {

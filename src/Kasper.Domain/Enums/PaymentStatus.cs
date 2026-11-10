@@ -13,4 +13,6 @@ public enum PaymentStatus
     Cancelled,
     Expired,
     Failed,
+    /// <summary>Invoices only: the invoice was sent to the recipient.</summary>
+    Sent,
 }

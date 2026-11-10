@@ -8,13 +8,15 @@ import { Settings } from "./views/Settings";
 import { Documents } from "./views/Documents";
 import { Integrations } from "./views/Integrations";
 import { Projects } from "./views/Projects";
+import { Payments } from "./views/Payments";
 
-type View = "home" | "documents" | "projects" | "approvals" | "history" | "integrations" | "settings";
+type View = "home" | "documents" | "projects" | "approvals" | "history" | "payments" | "integrations" | "settings";
 
 const NAV: { id: View; label: string; milestone?: string; blurb?: string }[] = [
   { id: "home", label: "Home" },
   { id: "approvals", label: "Approvals" },
   { id: "history", label: "History" },
+  { id: "payments", label: "Payments" },
   { id: "documents", label: "Documents" },
   { id: "projects", label: "Projects" },
   { id: "integrations", label: "Integrations" },
@@ -84,6 +86,7 @@ export function App() {
         </div>
         {route.view === "approvals" && <div className="view"><Approvals lastEvent={lastEvent} go={go} /></div>}
         {route.view === "history" && <div className="view"><History selected={route.param} lastEvent={lastEvent} go={go} /></div>}
+        {route.view === "payments" && <div className="view"><Payments lastEvent={lastEvent} /></div>}
         {route.view === "documents" && <div className="view"><Documents go={go} preload={route.param} /></div>}
         {route.view === "projects" && <div className="view"><Projects selected={route.param} go={go} /></div>}
         {route.view === "integrations" && <div className="view"><Integrations /></div>}

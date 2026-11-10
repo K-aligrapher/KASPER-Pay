@@ -172,12 +172,23 @@ export const api2 = {
     call<ProjectTask>(`/api/projects/${projectId}/tasks/${id}`, { method: "PUT", body: JSON.stringify(edit) }),
   deleteTask: (projectId: string, id: string) => call<void>(`/api/projects/${projectId}/tasks/${id}`, { method: "DELETE" }),
   taskToNotion: (projectId: string, id: string) => post<ProjectTask>(`/api/projects/${projectId}/tasks/${id}/notion`),
+  payments: () => call<Payment[]>("/api/payments"),
+  guardrails: () => call<Guardrails>("/api/settings/guardrails"),
+  setGuardrails: (g: Guardrails) => call<Guardrails>("/api/settings/guardrails", { method: "PUT", body: JSON.stringify(g) }),
   /** Object URL for a staged PDF/image (for Final Review), or null if it can't be previewed. */
   previewUrl: async (artifactId: string) => {
     const res = await fetch(`/api/artifacts/${artifactId}/preview`, { headers: { Authorization: `Bearer ${token()}` } });
     return res.ok ? URL.createObjectURL(await res.blob()) : null;
   },
 };
+
+export type Payment = {
+  id: string; workflowId: string | null; kind: "purchase" | "invoice"; status: string; item: string; merchant: string;
+  recipient: string | null; amount: number; currency: string; reason: string | null; blockedRule: string | null;
+  blockedMessage: string | null; payPalOrderId: string | null; payPalCaptureId: string | null; payPalInvoiceId: string | null;
+  failureSummary: string | null; createdAtUtc: string; updatedAtUtc: string;
+};
+export type Guardrails = { perTransactionLimit: number; dailyLimit: number; duplicateWindowMinutes: number; currency: string };
 
 export type ProjectTask = { id: string; projectId: string; title: string; done: boolean; createdAtUtc: string; doneAtUtc: string | null; notionWorkflowId: string | null };
 

@@ -30,8 +30,15 @@ public sealed class PaymentOptions
     public decimal DailyLimit { get; set; } = 250.00m;
     public int DuplicateWindowMinutes { get; set; } = 10;
 
+    /// <summary>How often to ask PayPal whether the buyer approved, and how long to wait before giving up.</summary>
+    public int PollIntervalSeconds { get; set; } = 3;
+    public int PollTimeoutMinutes { get; set; } = 8;
+
     /// <summary>Merchants KASPER may pay. Empty means "every merchant in the catalog".</summary>
     public List<string> AllowedMerchants { get; set; } = [];
+
+    /// <summary>Invoice recipients KASPER may bill. Empty means any well-formed email.</summary>
+    public List<string> AllowedRecipients { get; set; } = [];
 }
 
 /// <summary>A seeded catalog product. Prices exist only here; the model can only pick an id.</summary>
@@ -72,4 +79,12 @@ public interface IPayPalOrders
 public interface IBrowserLauncher
 {
     void Open(string url);
+}
+
+public sealed record PayPalInvoiceDraft(string Id, string? Href);
+
+public interface IPayPalInvoices
+{
+    Task<PayPalInvoiceDraft> CreateDraftAsync(string recipientEmail, string description, decimal amount, string currency, CancellationToken ct);
+    Task SendAsync(string invoiceId, CancellationToken ct);
 }
