@@ -15,6 +15,7 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Schedule> Schedules => Set<Schedule>();
     public DbSet<ProjectTask> ProjectTasks => Set<ProjectTask>();
+    public DbSet<Payment> Payments => Set<Payment>();
 
     /// <summary>All times are stored as UTC; SQLite loses DateTimeKind, so restore it on read.</summary>
     protected override void ConfigureConventions(ModelConfigurationBuilder c)
@@ -134,6 +135,27 @@ public sealed class KasperDbContext(DbContextOptions<KasperDbContext> options) :
             e.Property(x => x.Request).HasMaxLength(2000);
             e.Property(x => x.TimeOfDay).HasMaxLength(5);
             e.Property(x => x.Days).HasMaxLength(40);
+        });
+
+        b.Entity<Payment>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.StepId).IsUnique();
+            e.HasIndex(x => x.CreatedAtUtc);
+            e.HasIndex(x => x.Status);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.ProductId).HasMaxLength(64);
+            e.Property(x => x.ProductName).HasMaxLength(200);
+            e.Property(x => x.Merchant).HasMaxLength(200);
+            e.Property(x => x.Currency).HasMaxLength(3);
+            e.Property(x => x.Reason).HasMaxLength(300);
+            e.Property(x => x.BlockedRule).HasMaxLength(64);
+            e.Property(x => x.BlockedMessage).HasMaxLength(500);
+            e.Property(x => x.Fingerprint).HasMaxLength(64);
+            e.Property(x => x.PayPalOrderId).HasMaxLength(64);
+            e.Property(x => x.PayPalCaptureId).HasMaxLength(64);
+            e.Property(x => x.ApproveUrl).HasMaxLength(500);
+            e.Property(x => x.FailureSummary).HasMaxLength(500);
         });
 
         b.Entity<MockOutboxEntry>(e =>

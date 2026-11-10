@@ -12,7 +12,7 @@ namespace Kasper.Application.Approvals;
 public static class ActionHasher
 {
     public static string Compute(string toolId, int toolVersion, JsonObject resolvedInput,
-        IReadOnlyDictionary<string, string>? artifactHashes = null)
+        IReadOnlyDictionary<string, string>? artifactHashes = null, JsonObject? extras = null)
     {
         var doc = new JsonObject
         {
@@ -23,6 +23,7 @@ public static class ActionHasher
                 (artifactHashes ?? new Dictionary<string, string>())
                 .Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)kv.Value))))
         };
+        if (extras is not null) doc["extras"] = Canonicalize(extras);
         var bytes = Encoding.UTF8.GetBytes(doc.ToJsonString(new JsonSerializerOptions { WriteIndented = false }));
         return Convert.ToHexStringLower(SHA256.HashData(bytes));
     }

@@ -74,7 +74,23 @@ public interface ITool
     /// <summary>Describe exactly what will happen, without doing it. Only called for approval-gated tools.</summary>
     Task<ToolPreview> PreviewAsync(ToolContext context, JsonObject input, CancellationToken ct) =>
         Task.FromResult(new ToolPreview(Descriptor.Description, Descriptor.Id, []));
+
+    /// <summary>
+    /// Extra facts bound into the approval fingerprint (e.g. the code-derived price), so the approval
+    /// is invalid if they change. Null for tools whose input already says everything.
+    /// </summary>
+    JsonObject? FingerprintExtras(JsonObject input) => null;
+
+    /// <summary>
+    /// Checked when a plan is submitted, before anything is staged. Returns reasons the action must be
+    /// blocked (empty = fine). Only called with literal inputs, never with unresolved $references.
+    /// </summary>
+    Task<IReadOnlyList<ScreenViolation>> ScreenAsync(JsonObject input, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<ScreenViolation>>([]);
 }
+
+/// <summary>A rule an action broke, e.g. Rule = "per_transaction_limit".</summary>
+public sealed record ScreenViolation(string Rule, string Message);
 
 public sealed class ToolException(string code, string message, ErrorCategory category, Exception? inner = null)
     : Exception(message, inner)

@@ -231,10 +231,12 @@ public class PayPalTests
         var order = await svc.CreateOrderAsync(Guid.NewGuid().ToString("N"), "test", new SeedCatalog().Find("ms-wl-01")!, 1, default);
         Assert.False(string.IsNullOrEmpty(order.Id));
         Assert.NotNull(order.ApproveUrl);
-        Assert.Equal(24.99m, order.Amount);
+        // PayPal's create response is minimal (no amount); the full order comes from GET.
 
         var again = await svc.GetOrderAsync(order.Id, default);
         Assert.Equal(order.Id, again.Id);
+        Assert.Equal(24.99m, again.Amount);
+        Assert.Equal("USD", again.CurrencyCode);
         Assert.NotEqual("COMPLETED", again.Status);
     }
 }

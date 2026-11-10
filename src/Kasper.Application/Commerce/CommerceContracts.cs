@@ -29,6 +29,9 @@ public sealed class PaymentOptions
     public decimal PerTransactionLimit { get; set; } = 100.00m;
     public decimal DailyLimit { get; set; } = 250.00m;
     public int DuplicateWindowMinutes { get; set; } = 10;
+
+    /// <summary>Merchants KASPER may pay. Empty means "every merchant in the catalog".</summary>
+    public List<string> AllowedMerchants { get; set; } = [];
 }
 
 /// <summary>A seeded catalog product. Prices exist only here; the model can only pick an id.</summary>
@@ -63,4 +66,10 @@ public interface IPayPalOrders
 
     /// <summary>Captures an APPROVED order. Safe to call twice: the same request id returns the same capture.</summary>
     Task<PayPalCapture> CaptureAsync(string orderId, string requestId, CancellationToken ct);
+}
+
+/// <summary>Opens the PayPal approval page in the user's browser. Only PayPal https links are allowed.</summary>
+public interface IBrowserLauncher
+{
+    void Open(string url);
 }

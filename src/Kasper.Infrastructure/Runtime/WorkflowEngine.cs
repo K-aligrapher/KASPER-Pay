@@ -118,7 +118,7 @@ public sealed class WorkflowEngine(
         List<WorkflowStep> steps, List<Approval> approvals, CancellationToken ct)
     {
         var now = clock.UtcNow;
-        var hash = await HashAsync(tool.Descriptor, resolved, ct);
+        var hash = await HashAsync(tool, resolved, ct);
         var latest = approvals.Where(a => a.StepId == step.Id).MaxBy(a => a.RequestedAtUtc);
 
         switch (latest?.Status)
@@ -163,7 +163,7 @@ public sealed class WorkflowEngine(
             if (tools.Find(step.ToolId) is not { Descriptor.RequiresApproval: true } tool) continue;
             if (Resolve(step, steps) is not { } resolved) continue;
 
-            var hash = await HashAsync(tool.Descriptor, resolved, ct);
+            var hash = await HashAsync(tool, resolved, ct);
             var existing = approvals.Where(a => a.StepId == step.Id).MaxBy(a => a.RequestedAtUtc);
             if (existing is { Status: ApprovalStatus.Pending or ApprovalStatus.Approved } && existing.ActionHash == hash) continue;
 
@@ -308,8 +308,9 @@ public sealed class WorkflowEngine(
     }
 
     /// <summary>Hash over the resolved input plus the current content hash of every file involved.</summary>
-    private async Task<string> HashAsync(ToolDescriptor d, JsonObject resolved, CancellationToken ct)
+    private async Task<string> HashAsync(ITool tool, JsonObject resolved, CancellationToken ct)
     {
+        var d = tool.Descriptor;
         var fileHashes = new Dictionary<string, string>();
         foreach (var p in d.Parameters.Where(p => p.Type is ParamType.ArtifactRef or ParamType.ArtifactList))
         {
@@ -324,7 +325,7 @@ public sealed class WorkflowEngine(
                 }
             }
         }
-        return ActionHasher.Compute(d.Id, d.Version, resolved, fileHashes);
+        return ActionHasher.Compute(d.Id, d.Version, resolved, fileHashes, tool.FingerprintExtras(resolved));
     }
 
     internal static List<Approval> LatestPerStep(IEnumerable<Approval> approvals) =>

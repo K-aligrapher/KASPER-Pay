@@ -47,6 +47,8 @@ public sealed class WorkflowService(
         if (errors.Count > 0)
             throw new WorkflowRequestException(400, "plan_invalid", "The plan was rejected by validation.", errors);
 
+        await ScreenAsync(plan, ct);
+
         var wf = Workflow.Create(Operator, request, plan.Summary, clock.UtcNow);
         db.Workflows.Add(wf);
         var seq = 1;
@@ -62,6 +64,22 @@ public sealed class WorkflowService(
         events.Publish(new WorkflowEventDto(wf.Id, wf.Status.ToString(), wf.Summary, 0));
         events.SignalWorker();
         return Summary(wf, 0, plan.Steps.Count);
+    }
+
+    /// <summary>Lets tools refuse an action up front (e.g. spending limits). Only literal inputs are screened.</summary>
+    private async Task ScreenAsync(Plan plan, CancellationToken ct)
+    {
+        foreach (var s in plan.Steps)
+        {
+            if (tools.Find(s.ToolId) is not { } tool || tool.Descriptor.Effect == Domain.Enums.EffectClass.Read) continue;
+            if (s.Input.Any(kv => kv.Value is JsonValue v && Application.Planning.StepReferences.LooksLikeRef(v))) continue;
+            var violations = await tool.ScreenAsync(s.Input, ct);
+            if (violations.Count == 0) continue;
+            Audit.Add(db, clock.UtcNow, Operator, "action.blocked", violations[0].Rule, target: s.ToolId);
+            await db.SaveChangesAsync(ct);
+            throw new WorkflowRequestException(409, "blocked",
+                $"Blocked by {violations[0].Rule}.", violations.Select(v => v.Message).ToList());
+        }
     }
 
     public async Task<IReadOnlyList<WorkflowSummaryDto>> ListAsync(int take, CancellationToken ct)
