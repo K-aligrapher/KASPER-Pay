@@ -23,23 +23,17 @@
 
 ---
 
+<!-- Add the YouTube link once the video is public, then uncomment:
+<p align="center"><b><a href="PASTE_YOUTUBE_LINK_HERE">Watch the 3-minute demo</a></b></p>
+-->
+
 ## Screenshots
 
-<!--
-  Add your screenshots to docs/screenshots/ and uncomment the lines below.
-  Suggested shots (about 1400 px wide):
-    home.png          Home chat with a purchase request
-    review.png        Final Review card for a purchase (price, merchant, heads-up, "nothing charged yet")
-    paypal.png        The PayPal sandbox checkout page
-    payments.png      Payments tab: tiles, chart and grid
-    blocked.png       A blocked request showing the rule name
-    invoices.png      Invoice rows (Paid / Waiting) and the split-bill review card
-    receipts.png      "Chain intact" receipts card
+<p align="center"><img src="docs/screenshots/home.png" width="49%" alt="KASPER home"> <img src="docs/screenshots/review.png" width="49%" alt="Review card before a purchase"></p>
+<p align="center"><img src="docs/screenshots/paypal.png" width="49%" alt="PayPal sandbox checkout, the second approval"> <img src="docs/screenshots/payments.png" width="49%" alt="Payments screen with AG Grid and AG Charts"></p>
+<p align="center"><img src="docs/screenshots/blocked.png" width="49%" alt="A request blocked by a spending rule"> <img src="docs/screenshots/invoice.png" width="49%" alt="Invoice review before PayPal sends it"></p>
+<p align="center"><img src="docs/screenshots/split.png" width="49%" alt="Split a bill into three PayPal invoices"> <img src="docs/screenshots/receipts.png" width="49%" alt="Tamper-evident receipts with chain intact"></p>
 
-  <p align="center"><img src="docs/screenshots/home.png" width="49%"> <img src="docs/screenshots/review.png" width="49%"></p>
-  <p align="center"><img src="docs/screenshots/paypal.png" width="49%"> <img src="docs/screenshots/payments.png" width="49%"></p>
-  <p align="center"><img src="docs/screenshots/blocked.png" width="49%"> <img src="docs/screenshots/invoices.png" width="49%"></p>
--->
 
 ## What it does
 
@@ -111,7 +105,7 @@ Every PayPal call KASPER makes is in the [Postman collection](docs/KASPER-Pay.po
 ## Setup (5 steps)
 
 1. Install the .NET 10 SDK, Node.js and [Ollama](https://ollama.com), then run `ollama pull qwen3:8b`.
-2. Create a PayPal sandbox app and sandbox accounts at [developer.paypal.com](https://developer.paypal.com). Use a **United States** business account for the app and a **United States** personal account as the buyer, otherwise checkout fails on currency.
+2. Create a PayPal sandbox app and sandbox accounts at [developer.paypal.com](https://developer.paypal.com). Use a **United States** business account for the app and a **United States** personal account as the buyer, otherwise checkout fails on currency. When you create the app, open its **Features** and tick **Accept payments** and **Invoicing**, then click **Save Changes** (without Invoicing, invoice features fail with a permission error).
 3. Store the app credentials (see [.env.example](.env.example)):
    ```powershell
    dotnet user-secrets set "PayPal:ClientId" "<sandbox client id>" --project src/Kasper.Api
@@ -218,6 +212,18 @@ tests/Kasper.UnitTests     domain, adapter, payment and API tests
 - The token is kept in `session.json`, which only your Windows user can read, and is never logged.
 - Only `user`/`assistant` messages are accepted; KASPER's system prompt can't be replaced by callers.
 - Secrets (PayPal, Channel3) come from user secrets or environment variables, never from files in the repo.
+
+## Troubleshooting
+
+| What you see | Why, and what to do |
+|---|---|
+| PayPal checkout says *"This seller doesn't accept payments in your currency"* | Your sandbox accounts aren't US accounts (India accounts are INR-only). Create a **US business** and a **US personal** sandbox account, create the app under the US business, and log in as the US personal buyer. |
+| PayPal checkout says *"Things don't appear to be working"* or *"logged in elsewhere"* | Open the checkout link in a **private window** and log in with the **sandbox personal** account, never your real PayPal login. Don't reuse an old link: ask KASPER again. |
+| Invoice rows show **Failed** with *"PayPal rejected the request. Check the sandbox credentials and app permissions."* | The app doesn't have the Invoicing permission. Tick **Invoicing** under the app's **Features**, click **Save Changes**, then restart KASPER (it caches the token). If it still fails, create a new app with Invoicing ticked and use its credentials. |
+| Buying shows "KASPER Demo Store" products only | No Channel3 key is set, so KASPER searches the 8 built-in products. Set `Channel3:ApiKey` (step 3) and restart for live products. |
+| A request is **Blocked** | One of your spending rules stopped it (the rule name is shown). Change the limits on the **Payments** screen, or wait out the 10-minute duplicate window. |
+| The Payments screen shows an error or the chart is missing | Rebuild the UI (`cd ui; npm ci; npm run build`) and restart the app. |
+| KASPER doesn't see new secrets or settings | Fully quit it (including the tray icon) and start it again. |
 
 ## License
 

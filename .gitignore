@@ -23,3 +23,6 @@ appsettings.Local.json
 # Local UI secrets (AG Grid trial key lives here, never committed)
 .env.local
 ui/.env.local
+
+# Demo video working files (large; never committed)
+demo/
